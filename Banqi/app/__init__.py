@@ -16,7 +16,11 @@ def create_app():
 
     from .routes.views import main_bp
     app.register_blueprint(main_bp)
+
     from .routes.home import home_bp
     app.register_blueprint(home_bp)
+
+    from .routes.game import play_bp
+    app.register_blueprint(play_bp)
     
     return app

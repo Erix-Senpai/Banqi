@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-9">
+                <img src="{{ url_for('static', filename='image folder/Banqi_Board.png') }}" alt="Banqi Board" class="img-fluid board-img" draggable="false">
+            </div>
+            <div class="col-3" style="text-align:center;">
+                <p> Move Number:</p>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

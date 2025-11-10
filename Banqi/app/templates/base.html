@@ -18,7 +18,41 @@
             <title>Banqi</title>
     </head>
 
-{% block header %}
-
-
-{% endblock header %}
+    <body>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-sm-4 col-md-3 col-lg-3 col-xl-2" style="background: rgba(83, 54, 19, 0.683);">
+                    <nav class="navbar" style="height: flex;">
+                        <ul class="nav">
+                            <li class="nav-cont col-12">
+                                <a class="nav-item nav-link" id="Home" href="{{ url_for('home.home') }}" type="button">Home</a>
+                            </li>
+                            <li class="nav-cont col-12">
+                                <a class="nav-item nav-link"  id="Play" type="button" href="{{ url_for('play.game') }}">Play</a>
+                            </li>
+                            <li class="nav-cont col-12">
+                                <a class="nav-item nav-link" id="Profile" type="button" href="#">Profile</a>
+                            </li>
+                            <li class="nav-cont col-12">
+                                <a class="nav-item nav-link" id="Setting" type="button" href="#">Setting</a>
+                            </li>
+                        </ul>
+                        <ul class="nav"></ul>
+                            <li class="nav-item">
+                                <a class="nav-link" href="#">Link</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+                <main class="col-sm-8 col-md-9 col-lg-9 col-xl-10" style="background: rgba(125, 90, 26, 0.683); height:100vh;">
+                    <div class="container-fluid center">
+                        <div class="row">
+                    
+                        {% block content %}{% endblock %}
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+    </body>
+</html>
