@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
 <div>
-    <div class="container-fluid">
+    <div class="board-fluid">
         <div class="row">
             <div class="col-9">
-                <img src="{{ url_for('static', filename='image folder/Banqi_Board.png') }}" alt="Banqi Board" class="img-fluid board-img" draggable="false">
+                <div class="board-container">
+                    <img src="{{ url_for('static', filename='image folder/Banqi_Board.png') }}" alt="Banqi Board" class="img-fluid board-img" draggable="false">
+                    <img src="{{ url_for('static', filename='image folder/w_king.png') }}"  alt="Banqi Board" data-square="a1" class="piece" draggable="true">
+                    <div id="board"></div>
+                    <div id="game-state"></div>
+                </div>
             </div>
             <div class="col-3" style="text-align:center;">
                 <p> Move Number:</p>
@@ -13,4 +18,64 @@
     </div>
 
 </div>
+
+<!-- Include the game JS (put this file at static/js/game.js) -->
+<script src="{{ url_for('static', filename='js/game.js') }}"></script>
+<script>
+    async function init_board() {
+      // Fetch JSON from Flask backend
+      const response = await fetch('/play/initialise');
+      const data = await response.json();
+
+      render_board(data);
+    
+      // Log what we got
+      //console.log(data);
+
+      // Example: show it on page
+      //document.getElementById('game-state').innerText = JSON.stringify(data, null, 2);
+    }
+
+    function render_board(pos){
+        const boardDiv = document.getElementById("board");
+        
+        for (const square in pos)
+        {
+            const piece = pos[square];
+            if (piece === "none") continue;
+
+            const img = document.createElement("img");
+            img.src=`/static/image_folder/${piece}.png`;
+            img.classList.add("piece");
+            img.dataset.square = square;
+            img.draggable = true;
+
+            const {top, left} = compute_p(square);
+            img.style.top = top;
+            img.style.left=left;
+            boardDiv.appendChild(img);
+        }
+
+    }
+    function compute_p(square){
+        const file = square[0];
+        const rank = parseInt(square[1]);
+
+        const file_index = file.charCodeAt(0) - 'a'.charCodeAt(0) + 1; // Compute via character code minus a + 1, such that char code 'a' = 1, 'b' = 2...
+        const rank_index = 4 - rank;
+
+        const top = 2.75 + rank_index * 6.25;
+        const left = 0.75 + file_index * 6.25;
+
+        return {
+            top: top + "%",
+            left: left + "%"
+        };
+    }
+
+    // Run it once on page load
+    init_board();
+</script>
+
+
 {% endblock %}

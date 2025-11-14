@@ -1,4 +1,4 @@
-from flask import Blueprint, redirect, render_template, request, url_for
+from flask import Blueprint, redirect, render_template, request, url_for, jsonify, json
 from flask_login import current_user
 from .. import db
 import random
@@ -8,14 +8,15 @@ def game():
     return render_template('game.html')
 
 
+@play_bp.route('/initialise')
+def initialise():
+    # pretend this is your game state
+    pos = init_pos()
+    # Flask automatically turns Python dict → JSON
+    return jsonify(pos)
 
 
-def board(__from__, __to__, status):
-    if status == 'start':
-        populate()
 
-def populate():
-    return
 
 pieces = dict(w_general=1, b_general=1,
      w_advisor=2, b_advisor=2,
@@ -28,28 +29,12 @@ pieces = dict(w_general=1, b_general=1,
 pool = [piece for piece, count in pieces.items() for _ in range(count)]
 random.shuffle(pool)
 
-class initialise_Board:
-    def __dict__():
-        files = {
-            1:'a',
-            2:'b',
-            3:'c',
-            4:'d',
-            5:'e',
-            6:'f',
-            7:'g',
-            8:'h'
-        }
-    def __init__():
-        pieces == 'unknown'
-        pos = []
-        for i in range(8):
-            for y in range(4):
-                x = [i[file] for file in __dict__.files if file in i]
-                pos.append(x,y)
-        return pos
+def init_pos() -> dict:
+    return {
+        f"{file}{rank}": "unknown"
+        for file in "abcdefgh"
+        for rank in range(1, 5)
+    }
 
-def position():
-    
-    a1 = initialise_Board
-    print(a1)
+
+# print(f"POS: {init_pos()}")
