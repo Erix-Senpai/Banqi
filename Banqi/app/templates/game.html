@@ -5,8 +5,7 @@
         <div class="row">
             <div class="col-9">
                 <div class="board-container">
-                    <img src="{{ url_for('static', filename='image folder/Banqi_Board.png') }}" alt="Banqi Board" class="img-fluid board-img" draggable="false">
-                    <img src="{{ url_for('static', filename='image folder/w_king.png') }}"  alt="Banqi Board" data-square="a1" class="piece" draggable="true">
+                    <img src="{{ url_for('static', filename='image_folder/Banqi_Board.png') }}" alt="Banqi Board" class="img-fluid board-img" draggable="false">
                     <div id="board"></div>
                     <div id="game-state"></div>
                 </div>
@@ -63,9 +62,10 @@
 
         const file_index = file.charCodeAt(0) - 'a'.charCodeAt(0) + 1; // Compute via character code minus a + 1, such that char code 'a' = 1, 'b' = 2...
         const rank_index = 4 - rank;
+        console.debug("FILE INDEX:" + {file_index})
 
-        const top = 2.75 + rank_index * 6.25;
-        const left = 0.75 + file_index * 6.25;
+        const top = 2.75 + rank_index * 25;
+        const left = -11.75 + file_index * 12.5;
 
         return {
             top: top + "%",
