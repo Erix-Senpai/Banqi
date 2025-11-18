@@ -3,21 +3,18 @@ from flask_login import current_user
 from .. import db
 import random
 
-
+#Game Bp
 play_bp = Blueprint('play', __name__, url_prefix='/play')
 @play_bp.route('/game', methods = ['POST', 'GET'])
 def game():
     return render_template('game.html')
 
-
+#init game board upon loading the game.
 @play_bp.route('/initialise')
-def initialise():
-    # pretend this is your game state
-    pos = init_pos()
-    # Flask automatically turns Python dict → JSON
-    return jsonify(pos)
+def initialise() -> dict:
+    pos = init_pos()    #get piece_dict, and return a dict of game map where pieces are assigned as "unknown".
+    return jsonify(pos)     # return pos to json.
 
-###
 
 def get_piece() -> str:
     try:
