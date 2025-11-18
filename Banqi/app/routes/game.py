@@ -2,6 +2,8 @@ from flask import Blueprint, redirect, render_template, request, url_for, jsonif
 from flask_login import current_user
 from .. import db
 import random
+
+
 play_bp = Blueprint('play', __name__, url_prefix='/play')
 @play_bp.route('/game', methods = ['POST', 'GET'])
 def game():
@@ -15,26 +17,36 @@ def initialise():
     # Flask automatically turns Python dict → JSON
     return jsonify(pos)
 
+###
+
+def get_piece() -> str:
+    try:
+        while(1):
+            revealed_piece = str(random.choice(list(piece_dict.keys())))
+            if piece_dict[revealed_piece] == 0:
+                del piece_dict[revealed_piece]
+            else:
+                piece_dict[revealed_piece] -= 1
+                break
+    except IndexError:
+        return "none"
+    except KeyError:
+        return "none"   #Temp funct to return none, should be changed to 404 as this shouldn't occur.
+    return str(revealed_piece)
 
 
-
-pieces = dict(w_general=1, b_general=1,
+###
+def init_pos() -> dict:
+    global piece_dict
+    piece_dict = dict(w_king=1, b_king=1,
      w_advisor=2, b_advisor=2,
      w_elephant=2, b_elephant=2,
      w_chariot=2, b_chariot=2,
      w_horse=2, b_horse=2,
      w_pawn=5, b_pawn=5,
      w_catapult=2, b_catapult=2)
-
-pool = [piece for piece, count in pieces.items() for _ in range(count)]
-random.shuffle(pool)
-
-def init_pos() -> dict:
     return {
-        f"{file}{rank}": "unknown"
+        f"{str(file)}{int(rank)}": "unknown"
         for file in "abcdefgh"
         for rank in range(1, 5)
     }
-
-
-# print(f"POS: {init_pos()}")

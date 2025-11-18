@@ -11,71 +11,19 @@
                 </div>
             </div>
             <div class="col-3" style="text-align:center;">
-                <p> Move Number:</p>
+                <div><p> Move Number:</p></div>
+                <div id="move-notation"></div>
             </div>
         </div>
     </div>
 
 </div>
 
+<!-- 1. Load Socket.IO client library -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <!-- Include the game JS (put this file at static/js/game.js) -->
 <script src="{{ url_for('static', filename='js/game.js') }}"></script>
-<script>
-    async function init_board() {
-      // Fetch JSON from Flask backend
-      const response = await fetch('/play/initialise');
-      const data = await response.json();
-
-      render_board(data);
-    
-      // Log what we got
-      //console.log(data);
-
-      // Example: show it on page
-      //document.getElementById('game-state').innerText = JSON.stringify(data, null, 2);
-    }
-
-    function render_board(pos){
-        const boardDiv = document.getElementById("board");
-        
-        for (const square in pos)
-        {
-            const piece = pos[square];
-            if (piece === "none") continue;
-
-            const img = document.createElement("img");
-            img.src=`/static/image_folder/${piece}.png`;
-            img.classList.add("piece");
-            img.dataset.square = square;
-            img.draggable = true;
-
-            const {top, left} = compute_p(square);
-            img.style.top = top;
-            img.style.left=left;
-            boardDiv.appendChild(img);
-        }
-
-    }
-    function compute_p(square){
-        const file = square[0];
-        const rank = parseInt(square[1]);
-
-        const file_index = file.charCodeAt(0) - 'a'.charCodeAt(0) + 1; // Compute via character code minus a + 1, such that char code 'a' = 1, 'b' = 2...
-        const rank_index = 4 - rank;
-        console.debug("FILE INDEX:" + {file_index})
-
-        const top = 2.75 + rank_index * 25;
-        const left = -11.75 + file_index * 12.5;
-
-        return {
-            top: top + "%",
-            left: left + "%"
-        };
-    }
-
-    // Run it once on page load
-    init_board();
-</script>
+<script>init_board();</script>
 
 
 {% endblock %}
