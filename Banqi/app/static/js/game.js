@@ -1,8 +1,9 @@
 const socket = io();  // connects to ws://localhost:5000
 let piece_selected = null;  // stores square of 1st click
 let square_selected = null;   // stores piece name of 1st click
-
-
+let img_selected = null;
+let player_turn = 'A';
+let move_count = 0;
 // From game.html call to init_board.
 async function init_board() {
       const response = await fetch('/play/initialise');     // Fetch pos from game.py as it initialises board data.
@@ -32,16 +33,50 @@ function render_board(pos){
         img.addEventListener("click", () => {
             piece_onclick(img);
         });
+        img.addEventListener("contextmenu",(event) => {
+            event.preventDefault();
+            piece_onrightclick();
+        });
 
         const {top, left} = compute_pos(square);    //compute_pos to get the position of square{top,left} displayed on UI. Apply styling to piece.
         img.style.top = top;
         img.style.left=left;
         boardDiv.appendChild(img);
     }
+}
+function render_move(notations){
+    notation = String(notations)
+    const p = document.createElement("p");
+    p.textContent = notation;
+    console.debug(`Player turn: ${player_turn}`)
+    if (player_turn === 'A'){
 
+        const notationDiv = document.getElementById("move-notation-one");
+        notationDiv.appendChild(p);
 
+        const m = document.createElement("p");
+        move_count += 1;
+        m.textContent = move_count;
+        const movenumberDiv = document.getElementById("move-number");
+        movenumberDiv.appendChild(m);
+
+        player_turn = 'B';
+    }
+    else if (player_turn === 'B'){
+        const notationDiv = document.getElementById("move-notation-two");
+        notationDiv.appendChild(p);
+        player_turn = 'A';
+    }
 }
 
+// On right click, de-select.
+function piece_onrightclick(){
+    if (square_selected){
+        square_selected = null;
+        piece_selected = null;
+        img_selected.style.removeProperty("border");
+    }
+};
 // on piece_onclick, perform a two-click-confirmation moves. Then, process the user's move.
 function piece_onclick(img){
     const square = img.dataset.square
@@ -49,7 +84,9 @@ function piece_onclick(img){
     if (!square_selected){  // If in Deselected State, select.
         square_selected = square;
         piece_selected = piece;
-        img.style.boxShadow = "0 0 10px 4px rgba(227, 216, 154, 1)";
+        img_selected = img;
+        console.debug("piece:"+ {piece})
+        img.style.border = "0.2vw solid #e3d89ae6";
         return;
     }   // Else, Perform calculation.
     else if (square_selected === square && piece==="unknown"){
@@ -60,12 +97,25 @@ function piece_onclick(img){
     }
     else if(square_selected != square && piece){
         // Perform Capture Calculation.
+        // if piece == own piece:
+    
+        img_selected.style.removeProperty("border");
+        square_selected = null;
+        piece_selected = null;
+
+        square_selected = square;
+        piece_selected = piece;
+        img_selected = img;
+        console.debug("piece:"+ {piece})
+        img.style.border = "0.2vw solid #e3d89ae6";
+        return;
     }
-    img.style.boxShadow = "none";
+    img_selected.style.removeProperty("border");
     square_selected = null;
     piece_selected = null;
     return;
 }
+
 
 // calculate_p to map the board by correctly positioning them to the UI by intaking square{file:str,rank:int}, and returns pos.
 function compute_pos(square){
@@ -96,10 +146,24 @@ socket.on("piece_revealed", (data) => {
     img.src = `/static/image_folder/${piece}.png`;
 
     img.dataset.piece = piece;
-
+    console.debug(`SQUARE: ${square}, PIECE:${piece}`);
+    
+    const piece_notation = getKeyByValue(piece_list, piece);
+    if (!piece_notation){
+        piece_notation = piece;
+    }
+    notation = (`${square}=(${piece_notation})`);
+    console.debug(`SQUARE: ${square}, PIECE:${piece_notation}`);
+    render_move(notation);
 });
 
-
+function getKeyByValue(object, value) {
+    return Object.keys(object).find(key => object[key] === value);
+}
+const piece_list = {
+    bK:'b_king', bA: 'b_advisor', bE: 'b_elephant', bR: 'b_chariot', bH: 'b_horse', bC: 'b_catapult', bP: 'b_pawn',
+    rK:'w_king', rA: 'w_advisor', rE: 'w_elephant', rR: 'w_chariot', rH: 'w_horse', rC: 'w_catapult', rP: 'w_pawn'
+}
 
 /* Debug:
 

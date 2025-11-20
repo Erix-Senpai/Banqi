@@ -1,7 +1,8 @@
-from flask import Blueprint, redirect, render_template, request, url_for, jsonify, json
+from flask import Blueprint, redirect, render_template, request, url_for, jsonify, json, Response
 from flask_login import current_user
 from .. import db
 import random
+
 
 #Game Bp
 play_bp = Blueprint('play', __name__, url_prefix='/play')
@@ -11,12 +12,13 @@ def game():
 
 #init game board upon loading the game.
 @play_bp.route('/initialise')
-def initialise() -> dict:
+def initialise() -> Response:
     pos = init_pos()    #get piece_dict, and return a dict of game map where pieces are assigned as "unknown".
     return jsonify(pos)     # return pos to json.
 
 
 def get_piece() -> str:
+    revealed_piece = None
     try:
         while(1):
             revealed_piece = str(random.choice(list(piece_dict.keys())))
