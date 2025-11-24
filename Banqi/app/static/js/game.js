@@ -142,10 +142,29 @@ function piece_onclick(img){
                     assign_selected(img);
                 }
             }
+            else if (square_selected === square){
+                clear_selected();
+            }
             else{
                 // Case selecting between own_piece or unknown piece.
                 clear_selected();
                 assign_selected(img);
+            }
+        }
+        else if (piece === "none"){
+            // Piece moving to square.
+            if (piece_selected === "unknown"){
+                clear_selected();
+            }
+            else if (isAdjacent(square_selected, square)){
+                make_move({
+                    "square1": square_selected,
+                    "square2": square,
+                    "piece1": piece_selected
+                });
+            }
+            else{
+                clear_selected();
             }
         }
         else{
@@ -206,6 +225,17 @@ function validate_selected_piece(piece){
     }
 }
 
+function squareToCoord(square) {
+    const col = square.charCodeAt(0) - 'a'.charCodeAt(0) + 1;  // 'a'→1, 'b'→2 ... 'h'→8
+    const row = parseInt(square[1]);  // '1'→1, '4'→4
+    return [col, row];
+}
+function isAdjacent(sq1, sq2) {
+    const [col1, row1] = squareToCoord(sq1);
+    const [col2, row2] = squareToCoord(sq2);
+    return (Math.abs(col1 - col2) === 1 && row1 === row2 || Math.abs(row1 - row2) === 1 && col1 === col2);
+}
+
 // socket listener on piece_revealed, accept data as data{square, piece}, 
 socket.on("piece_revealed", (data) => {
     const { square, piece } = data;
@@ -252,13 +282,32 @@ function make_capture(data){
     img2.src = `/static/image_folder/${piece1}.png`;
     img2.dataset.piece = piece1;
 
-    img1.remove();
-    img1.removeAttribute("data-piece");
+    img1.src = `/static/image_folder/empty.png`;
+    img1.style.border = "2vw solid #686868";
+    img1.dataset.piece = "none";
 
     notation = (`${square1} x ${square2}`);
     render_move(notation);
     alternate_current_player();
 };
+function make_move(data){
+    // copy make_capture over
+    const {square1, square2, piece1} = data;
+    const img1 = document.querySelector(`img[data-square="${square1}"]`);
+    const img2 = document.querySelector(`img[data-square="${square2}"]`);
+    if (!img1 || !img2) return;
+    console.log("replacing...");
+    img2.src = `/static/image_folder/${piece1}.png`;
+    img2.dataset.piece = piece1;
+
+    img1.src = `/static/image_folder/empty.png`;
+    img1.dataset.piece = "none";
+    img1.style.border = "1vw solid #686868";
+
+    notation = (`${square1} - ${square2}`);
+    render_move(notation);
+    alternate_current_player();
+}
 
 function getKeyByValue(object, value) {
     return Object.keys(object).find(key => object[key] === value);
