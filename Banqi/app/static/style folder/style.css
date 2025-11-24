@@ -102,3 +102,9 @@
 .piece-on-select{
     box-shadow: 0 0 0.8vw 0.4vw rgba(227, 216, 154, 0.9);
 }
+.player-a-turn{
+    background-color: grey;
+}
+.player-b-turn{
+    background-color: red;
+}
