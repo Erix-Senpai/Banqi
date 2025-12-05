@@ -17,7 +17,6 @@ socket.on("connect", () => {
 });
 
 socket.on("joined_game", (data) => {
-    console.log("Successfully joined game:", data.game_id);
 
     // NOW initialize board
     render_board(data.board);
@@ -60,7 +59,6 @@ function render_move(notations){
     const p = document.createElement("p");
     p.textContent = notation;
     
-    console.debug(`current player turn: ${player_turn}`);
     if (player_turn === 'A'){
 
         const notationDiv = document.getElementById("move-notation-one");
@@ -103,34 +101,21 @@ function assign_selected(img){
     img.style.border = "0.2vw solid #e3d89ae6";
 }
 function alternate_current_player(){
-    console.debug(`alternate_current_player triggered`);
-    console.debug(`current alternate_current_player: ${current_player}`);
     if (current_player === "w"){
         current_player = "b";
-        console.debug(`CURRENT PLAYER: switched from w to ${current_player}.`);
         turn = document.getElementById("player-a-turn");
         turn.style.colour = "dark-grey";
     }
     else if (current_player === "b"){
         current_player = "w";
-        console.debug(`CURRENT PLAYER: switched from b to ${current_player}`);
         turn = document.getElementById("player-a-turn");
         turn.style.colour = "red";
-    }
-    else{
-        console.debug(`error. current_player === ${current_player}`);
     }
 }
 // on piece_onclick, perform a two-click-confirmation moves. Then, process the user's move.
 function piece_onclick(img){
     const piece = img.dataset.piece;
     const square = img.dataset.square;
-    console.debug(`vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv`);
-    console.debug(`Detected Piece Click.`);
-    console.debug(`piece_selected: ${piece_selected}`);
-    console.debug(`piece currently clicked: ${piece}`);
-    console.debug(`current_player: ${current_player}`);
-    console.debug(`^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^`);
     //if piece_selected, else
     if (piece_selected){
         //case piece_to_select is valid
@@ -148,7 +133,6 @@ function piece_onclick(img){
                     });
                     clear_selected();
                     // alternate_current_player(); Runs within piece_revealed, as socket is asynchronic.
-                    console.debug(`current player has switched to ${current_player}`);
                 }
                 // Case unknown and !unknown
                 else{
@@ -170,7 +154,6 @@ function piece_onclick(img){
             if (piece_selected === "unknown"){
             }
             else if (isAdjacent(square_selected, square)){
-                console.debug("Attempt to Move Detected. Attempting to make a move.");
                 socket.emit("make_move",
                     {
                         "game_id": GAME_ID,
@@ -179,7 +162,6 @@ function piece_onclick(img){
                         "piece": piece_selected
                     }, (result) => {
                     if (result.validity === true){
-                        console.debug('True! Try Make move.');
                         move({
                         "square1": result.square1,
                         "square2": result.square2,
@@ -213,7 +195,6 @@ function piece_onclick(img){
     }
     else if (validate_selected_piece(piece)){
         // else, try to select.
-        console.debug(`No piece Selected. Selecting ${piece}.`);
         assign_selected(img);
     }
 }
@@ -241,10 +222,7 @@ function compute_pos(square){
 }
 
 function validate_selected_piece(piece){
-    console.debug(`Currently In deselect Mode. Attempting to Evaluate if Piece can be selected.`);
-    console.debug(`Does ${piece} evaluate to ${current_player} or is Unknown?`);
     if (piece.startsWith(current_player) || piece.startsWith('u')){
-        console.debug(`true`);
         return true;
     }
     else{
@@ -275,14 +253,12 @@ function reveal_piece(data){
         // move_mark = document.querySelector(`img[data-square="${img}"]`);
 
         img.dataset.piece = piece;
-        console.debug(`SQUARE: ${square}, PIECE:${piece}`);
         
         const piece_notation = getKeyByValue(piece_list, piece);
         if (!piece_notation){
             piece_notation = piece;
         }
         notation = (`${square}=(${piece_notation})`);
-        console.debug(`SQUARE: ${square}, PIECE:${piece_notation}`);
         render_move(notation);
         if (current_player === "u"){
             current_player = piece[0];
@@ -292,11 +268,9 @@ function reveal_piece(data){
 
 function make_capture(data){
     const {square1, square2, piece1, piece2 } = data;
-    console.log(`RECEIVED SQUARES AND PIECES: square1:${square1}, square2:${square2}, piece1:${piece1}, piece2:${piece2}`);
     const img1 = document.querySelector(`img[data-square="${square1}"]`);
     const img2 = document.querySelector(`img[data-square="${square2}"]`);
     if (!img1 || !img2) return;
-    console.log("replacing...");
     img2.src = `/static/image_folder/${piece1}.png`;
     img2.dataset.piece = piece1;
 
@@ -311,7 +285,6 @@ function move(data){
     const img1 = document.querySelector(`img[data-square="${square1}"]`);
     const img2 = document.querySelector(`img[data-square="${square2}"]`);
     if (!img1 || !img2) return;
-    console.log("replacing...");
     img2.src = `/static/image_folder/${piece}.png`;
     img2.dataset.piece = piece;
 

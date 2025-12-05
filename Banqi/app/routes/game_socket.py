@@ -67,25 +67,12 @@ def make_move(data: dict) -> dict:
         current_player = game["current_player"]
         #if not (validate_user(game_id)):
         #    return result
-        print("Attempting to Move.")
-        print(f"Testing.")
-        print(f"Sq1: {sq1}, p1: {piece}.")
-        print(f"Sq2: {sq2}, p2: {board[sq2]}.")
-        print("testing for Movement validity.")
-        print(f"is_adjacent? {is_adjacent(sq1, sq2)}")
-        print(f"board[sq1] == piece? {board[sq1] == piece}")
-        print(f"board[sq2] == none? {board[sq2] == "none"}")
-        print(f"{piece[0]} == {game["players"][current_player]["colour"]} ?")
-        a = piece[0] == game["players"][current_player]["colour"]
-        print("piece[0] == game..current_player.colour? {a}")
-
         if (
             is_adjacent(sq1, sq2) and
             board[sq1] == piece and
             board[sq2] == "none" and
             piece[0] == game["players"][current_player]["colour"]
             ):
-            print("true!")
             result = {"validity": True, "square1": sq1, "square2": sq2, "piece": piece}
             GAME_STATES[game_id]["board"][sq1] = "none"
             GAME_STATES[game_id]["board"][sq2] = piece
@@ -108,11 +95,6 @@ def capture(data: dict) -> dict:
         p1 = data["piece1"]
         p2 = data["piece2"]
         current_player = game["current_player"]
-        print(f"Testing. Sq1: {sq1}, p1: {p1}.")
-        print(f"Sq2: {sq2}, p2: {p2}.")
-        print(f"Sq1: {sq1}, p1: {p1}.")
-        print("testing for Capture validity.")
-        print(f"{board[sq1][0]} == {game["players"][current_player]["colour"]} ?")
         if not (
             board[sq1] == p1 and board[sq2] == p2):
             return result
@@ -128,8 +110,6 @@ def capture(data: dict) -> dict:
             notation = (f"{sq1} x {sq2}")
             record_move(game_id, notation)
             return result
-        print("failed.")
-        print("^^^^^^")
         return result
     except Exception:
         return result
@@ -171,9 +151,6 @@ def join_game(data: dict) -> None:
     sid = request.sid # type: ignore
     if game_id not in GAME_STATES:
         GAME_STATES[game_id] = init_game_state()
-        print(f"[NEW GAME] initialised board for game {game_id}")
-    else:
-        print(f"[LOAD GAME] sending existing board for game {game_id}")
     
         # Else user is in spectator Mode, Cannot make any action.
     # Else game is inactive, currently do not have a Function for it.
@@ -186,7 +163,6 @@ def join_game(data: dict) -> None:
                 game["players"]["A"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
                 game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
                 # WARNING / NOTE: ABOVE [B] NEEDS TO GET RID!!!
-                print("player successfully added.")
             elif ((game["players"]["B"]["user_id"]) == None):
                 game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
             ## Else, the player is a spectator. They could try make a move, but will always be invalid.
@@ -203,8 +179,6 @@ def capturable(square1: str, square2: str, piece1: str, piece2: str) -> bool:
     try:
         p1 = parse_piece(piece1)
         p2 = parse_piece(piece2)
-        print(f"can capture? {can_capture(p1, p2)}")
-        print(f"is_adjacent? {is_adjacent(square1, square2)}")
         return (can_capture(p1, p2) and is_adjacent(square1,square2))
     except Exception as e:
         return False
@@ -261,7 +235,6 @@ def is_adjacent(sq1: str, sq2: str) -> bool:
     col2, row2 = square_to_coord(sq2)
 
     # orthogonal neighbors:
-    print(f"{col1}? - {col2}? == 1? and {row1}? == {row2}? or {row1}? - {row2} == 1? and {col1}? == {col2} ?")
     return (abs(col1 - col2) == 1 and row1 == row2) or \
            (abs(row1 - row2) == 1 and col1 == col2)
 
