@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 import secrets
 from flask_socketio import SocketIO
 
-socketio = SocketIO(async_mode='threading')
+socketio = SocketIO(async_mode='threading', cors_allowed_origins="*", manage_session=True)
 #cors_allowed_origins="*"
 db = SQLAlchemy()
 def create_app():
