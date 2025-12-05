@@ -38,8 +38,12 @@
 <!-- 1. Load Socket.IO client library -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <!-- Include the game JS (put this file at static/js/game.js) -->
+ <script>
+    const GAME_ID = "{{ game_id }}";
+</script>
 <script src="{{ url_for('static', filename='js/game.js') }}"></script>
-<script>init_board();</script><!--Initialise Board from game.js-->
+<script>
+</script><!--Initialise Board from game.js-->
 
 
 {% endblock %}
