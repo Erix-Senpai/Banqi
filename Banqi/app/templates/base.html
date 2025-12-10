@@ -35,12 +35,21 @@
                             <li class="nav-cont col-12">
                                 <a class="nav-item nav-link"  id="Play" type="button" href="{{ url_for('play.create_game') }}">Play</a>
                             </li>
+                            {% if current_user.is_authenticated %}
                             <li class="nav-cont col-12">
                                 <a class="nav-item nav-link" id="Profile" type="button" href="#">Profile</a>
                             </li>
                             <li class="nav-cont col-12">
                                 <a class="nav-item nav-link" id="Setting" type="button" href="#">Setting</a>
                             </li>
+                            <li>
+                                <a href="{{ url_for('auth.logout') }}" class="btn btn-primary" tabindex="-1" role="button" aria-disabled="true">Log Out</a>
+                            </li>
+                            {% else %}
+                            <li>
+                                <a href="{{ url_for('auth.login') }}" class="btn btn-primary" tabindex="-1" role="button" aria-disabled="true">Log In</a>
+                            </li>
+                            {% endif %}
                         </ul>
                         <ul class="nav"></ul>
                             <li class="nav-item">
