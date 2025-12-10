@@ -1,0 +1,24 @@
+{%- macro render_form(form) -%}
+<form method="post" novalidate>
+  {{ form.hidden_tag() }}
+  {% for field in form %}
+    {% if field.type == 'CSRFTokenField' %}
+      {# hidden already rendered by hidden_tag #}
+    {% elif field.type == 'SubmitField' %}
+      <div class="mb-3">
+        {{ field(class='btn btn-primary') }}
+      </div>
+    {% else %}
+      <div class="mb-3">
+        <label for="{{ field.id }}" class="form-label">{{ field.label.text }}</label>
+        {{ field(class='form-control', id=field.id) }}
+        {% if field.errors %}
+          <div class="invalid-feedback d-block">
+            {% for err in field.errors %}{{ err }}{% if not loop.last %}<br>{% endif %}{% endfor %}
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</form>
+{%- endmacro -%}

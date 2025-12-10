@@ -22,6 +22,13 @@ socket.on("joined_game", (data) => {
     render_board(data.board);
 });
 
+socket.on("game_over", (data) => {
+    const {result} = data;
+    alert(`Game Over! Result: ${result}`);
+});
+
+// socket listener on 'board_state', accept data as pos{square: piece, ...}, then call render_board(pos)
+
 
 // render_board by deploying the board statically.
 function render_board(pos){

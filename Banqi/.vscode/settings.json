@@ -1,5 +1,6 @@
 {
     "python.analysis.typeCheckingMode": "standard",
     "javascript.validate.enable": true,
-    "javascript.implicitProjectConfig.checkJs": true
+    "javascript.implicitProjectConfig.checkJs": true,
+    "python-envs.pythonProjects": []
 }
