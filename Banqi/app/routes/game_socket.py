@@ -9,6 +9,7 @@ from flask_login import current_user
 from app import db
 from .models import Game, Player, Move
 
+PENDING_GAME_STATES = {}
 GAME_STATES = {}
 piece_list = {
     "bK":'b_king', "bA": 'b_advisor', "bE": 'b_elephant', "bR": 'b_chariot', "bH": 'b_horse', "bC": 'b_catapult', "bP": 'b_pawn',
@@ -116,10 +117,11 @@ def capture(data: dict) -> dict:
 def validate_user(game_id: str)-> bool:
     try:
         game = GAME_STATES[game_id]
-        user_id = current_user.id
-        if user_id == None:
-            user_id = 'ANONYMOUS'
-        return game["players"]["player_turn"]["user_id"] == user_id
+        current_player = game["player_turn"]
+        if (current_user.id != game["players"][current_player]["user_id"]):
+            return False
+        else:
+            return True
     except Exception:
         return False
 
@@ -148,51 +150,93 @@ def set_player_colour(game_id: str, colour_a :str) -> None:
 
 @socketio.on("join_game")
 def join_game(data: dict) -> None:
+    """Handle player joining a game with matchmaking logic.
+    
+    Flow:
+    1. If game_id provided: use that game (from URL)
+    2. If no game_id: look for pending game, or redirect to create_game
+    3. When 2nd player joins a PENDING game, move it to GAME_STATES and set status="Active"
+    """
     game_id = data.get("game_id")
-    user_id = 1
-    username = "test"
-    sid = request.sid # type: ignore
+    user_id = current_user.id if current_user.is_authenticated else 'ANONYMOUS'
+    username = current_user.username if current_user.is_authenticated else "Anonymous"
+    sid = request.sid  # type: ignore
 
+    # --- MATCHMAKING: If no game_id, find or create pending game ---
     if not game_id:
-        return
+        if PENDING_GAME_STATES:
+            # Join first available pending game
+            game_id = next(iter(PENDING_GAME_STATES))
+        else:
+            # No pending games; redirect client to create_game
+            socketio.emit("redirect_to_create", {
+                "url": "/play/create_game"
+            }, room=sid)  # type: ignore
+            return
 
-    if game_id not in GAME_STATES:
-        # try to load archived game from DB
+    # --- LOAD GAME STATE ---
+    if game_id not in GAME_STATES and game_id not in PENDING_GAME_STATES:
+        # Try to load archived game from DB
         loaded = load_game_from_db(game_id)
         if loaded:
             GAME_STATES[game_id] = loaded
         else:
-            GAME_STATES[game_id] = init_game_state()
+            # Game not found anywhere
+            socketio.emit("error", {
+                "message": f"Game {game_id} not found"
+            }, room=sid)  # type: ignore
+            return
 
-    # Now proceed to join room and register connection
-    game = GAME_STATES[game_id]
+    # --- DETERMINE WHICH DICT THE GAME IS IN ---
+    if game_id in PENDING_GAME_STATES:
+        game = PENDING_GAME_STATES[game_id]
+        is_pending = True
+    else:
+        game = GAME_STATES[game_id]
+        is_pending = False
+
+    # Join the room
     join_room(game_id)
     try:
         game.setdefault("connections", set()).add(sid)
     except Exception:
-        # defensive: ensure key exists as set
         game["connections"] = set([sid])
 
+    # --- ASSIGN PLAYER SLOT ---
     try:
-        if game.get("status") == "Active":
-            if game["players"]["A"].get("user_id") is None:
-                game["players"]["A"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
-            elif game["players"]["B"].get("user_id") is None:
-                game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
-            # else spectator
+        if game["players"]["A"].get("user_id") is None:
+            game["players"]["A"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
+            player_slot = "A"
+        elif game["players"]["B"].get("user_id") is None:
+            game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
+            player_slot = "B"
+        else:
+            # Both slots filled; this is a spectator
+            player_slot = None
     except Exception:
         leave_room(game_id)
         return
 
-    # send current state to joining client only
+    # --- CHECK IF WE SHOULD MOVE FROM PENDING TO ACTIVE ---
+    if is_pending and game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
+        # Both players have joined; move to GAME_STATES and activate
+        del PENDING_GAME_STATES[game_id]
+        game["status"] = "Active"
+        GAME_STATES[game_id] = game
+        socketio.emit("game_ready", {
+            "game_id": game_id,
+            "message": "Both players joined! Game starting."
+        }, room=game_id)  # type: ignore
+
+    # Send current state to joining client only
     socketio.emit("joined_game", {
         "game_id": game_id,
         "board": game.get("board"),
         "moves": game.get("moves"),
         "status": game.get("status"),
-        "players": game.get("players")
-        },
-        room=sid) # type: ignore
+        "players": game.get("players"),
+        "player_slot": player_slot
+    }, room=sid)  # type: ignore
 
 
 @socketio.on("end_game")

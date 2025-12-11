@@ -13,7 +13,24 @@ let move_count = 0;
 
 //calls upon initialisation.
 socket.on("connect", () => {
-    socket.emit("join_game", {game_id: GAME_ID});
+    // GAME_ID can be empty string if user clicked "Play" without a URL game_id
+    // The join_game handler will manage matchmaking
+    socket.emit("join_game", {game_id: GAME_ID || null});
+});
+
+socket.on("redirect_to_create", (data) => {
+    // No pending games available; redirect to create_game
+    window.location.href = data.url;
+});
+
+socket.on("game_ready", (data) => {
+    console.log("Game ready! Both players joined:", data);
+});
+
+socket.on("error", (data) => {
+    // Game not found
+    alert("Error: " + data.message);
+    window.location.href = "/";
 });
 
 socket.on("joined_game", (data) => {
