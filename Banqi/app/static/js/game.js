@@ -23,6 +23,14 @@ socket.on("redirect_to_create", (data) => {
     window.location.href = data.url;
 });
 
+
+socket.on("redirect_to_game", (data) => {
+    // Server instructs client to navigate to canonical game URL
+    if (data && data.url) {
+        window.location.href = data.url;
+    }
+});
+
 socket.on("game_ready", (data) => {
     console.log("Game ready! Both players joined:", data);
 });
@@ -107,6 +115,7 @@ function render_move(notations){
 function piece_onrightclick(){
     clear_selected();
 };
+
 function clear_selected(){
     try{
         square_selected = null;
@@ -148,15 +157,8 @@ function piece_onclick(img){
             if (piece_selected === "unknown"){
                 // Case Double Click Unknown Piece
                 if (piece === "unknown" && square_selected === square){
-                    socket.emit("reveal_piece",{
-                        game_id: GAME_ID, square: square,
-                    }, (result) =>{
-                        if (result.validity === true){
-                            reveal_piece({square: square, piece: result.piece});
-                        }
-                    });
+                    socket.emit("try_reveal_piece",{game_id: GAME_ID, square: square});
                     clear_selected();
-                    // alternate_current_player(); Runs within piece_revealed, as socket is asynchronic.
                 }
                 // Case unknown and !unknown
                 else{
@@ -175,46 +177,26 @@ function piece_onclick(img){
         }
         else if (piece === "none"){
             // Piece moving to square.
+            console.debug("Attempting to move from", square_selected, "to", square);
             if (piece_selected === "unknown"){
             }
             else if (isAdjacent(square_selected, square)){
-                socket.emit("make_move",
+                socket.emit("try_make_move",
                     {
                         "game_id": GAME_ID,
                         "square1": square_selected,
-                        "square2": square,
-                        "piece": piece_selected
-                    }, (result) => {
-                    if (result.validity === true){
-                        move({
-                        "square1": result.square1,
-                        "square2": result.square2,
-                        "piece": result.piece
-                        });
-                    }
-                })
+                        "square2": square
+                    });
             }
             clear_selected();
         }
         else{
             // Try Capture.
-            socket.emit("capture",{
+            socket.emit("try_capture",{
             game_id: GAME_ID,
             square1: square_selected,
-            square2: square,
-            piece1: piece_selected,
-            piece2: piece }, (result) => {
-                if (result.validity === true){
-                    make_capture({
-                        "square1": result.square1,
-                        "square2": result.square2,
-                        "piece1": result.piece1,
-                        "piece2": result.piece2
-                    });
-                    // alternate_current_player(); runs elsewhere as is_capturable is asynchronic.
-                }
-                clear_selected();
-            });
+            square2: square});
+            clear_selected();
         }
     }
     else if (validate_selected_piece(piece)){
@@ -265,9 +247,12 @@ function isAdjacent(sq1, sq2) {
     return (Math.abs(col1 - col2) === 1 && row1 === row2 || Math.abs(row1 - row2) === 1 && col1 === col2);
 }
 
+socket.on("disconnect", () => {
+    console.log("Disconnected from server");
+});
 
 // socket listener on piece_revealed, accept data as data{square, piece},
-function reveal_piece(data){
+socket.on("reveal_piece", data => {
     const { square, piece } = data;
     const img = document.querySelector(`img[data-square="${square}"]`);
         if (!img) return;
@@ -288,9 +273,9 @@ function reveal_piece(data){
             current_player = piece[0];
         }
         alternate_current_player();
-}
+});
 
-function make_capture(data){
+socket.on("make_capture", data => {
     const {square1, square2, piece1, piece2 } = data;
     const img1 = document.querySelector(`img[data-square="${square1}"]`);
     const img2 = document.querySelector(`img[data-square="${square2}"]`);
@@ -303,8 +288,8 @@ function make_capture(data){
     notation = (`${square1} x ${square2}`);
     render_move(notation);
     alternate_current_player();
-};
-function move(data){
+});
+socket.on("make_move", data => {
     const {square1, square2, piece} = data;
     const img1 = document.querySelector(`img[data-square="${square1}"]`);
     const img2 = document.querySelector(`img[data-square="${square2}"]`);
@@ -318,7 +303,7 @@ function move(data){
     notation = (`${square1} - ${square2}`);
     render_move(notation);
     alternate_current_player();
-}
+});
 
 function getKeyByValue(object, value) {
     return Object.keys(object).find(key => object[key] === value);
