@@ -8,25 +8,28 @@ import uuid
 
 #Game Bp
 play_bp = Blueprint('play', __name__, url_prefix='/play')
+
+@play_bp.route('/game/', methods = ['POST', 'GET'])
 @play_bp.route('/game/<game_id>', methods = ['POST', 'GET'])
-def game(game_id):
-    return render_template('game.html', game_id=game_id)
+def game(game_id=None):
+    # If game_id provided, validate it exists or will be loaded from DB/PENDING
+    # If not provided, socket.io will handle matchmaking in join_game
+    return render_template('game.html', game_id=game_id or '')
 
-
-### Source of Initialisation. Currently called from base.html on play.
+### Source of Initialisation. Called when no pending games available.
 @play_bp.route("/create_game", methods=['GET'])
 def create_game():
-    ## On initialise, generate game_id.
+    """Generate a new game_id and add to PENDING_GAME_STATES.
+    
+    The client will then navigate to game.html which will emit join_game
+    without a game_id, triggering matchmaking logic.
+    """
+    from .game_socket import PENDING_GAME_STATES, init_game_state
+    
     game_id = str(uuid.uuid4())[:12]  # e.g. "a93b1c2d8ef0"
-
-    ### Currently immediately redirects to start game. Should be modified to wait for 2nd player to join to start_game.
-    return redirect(url_for('play.start_game', game_id=game_id))
-
-### calls from create_game. Once game is created, start game.
-@play_bp.route('/start_game', methods=['GET'])
-def start_game():
-    game_id = request.args.get("game_id")
-    ### Currently does not pass through any user data.
+    PENDING_GAME_STATES[game_id] = init_game_state()
+    
+    # Redirect to game.html with the new game_id
     return redirect(url_for('play.game', game_id=game_id))
 
 
