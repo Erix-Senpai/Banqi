@@ -1,43 +1,64 @@
 {% extends "base.html" %}
 {% block content %}
-<div>
-    <div class="board-fluid">
-        <div class="row player-a-turn" id="player-a-turn">
-            <h4>Player A</h4>
-        </div>
-        <div class="row">
-            <div class="col-9">
-                <div class="board-container">
-                    <img src="{{ url_for('static', filename='image_folder/Banqi_Board.png') }}" alt="Banqi Board" class="img-fluid board-img" draggable="false">
-                    <div id="board"></div>
-                    <div id="game-state"></div>
-                </div>
-            </div>
-            <div class="col-3" style="text-align:center;">
-                <div><p> Move Number:</p></div>
-                <div class="row">
-                    <div class="col-2">
-                        <div id="move-number"></div>
-                    </div>
-                    <div class="col-5">
-                        <div id="move-notation-one"></div>
-                    </div>
-                    <div class="col-5">
-                        <div id="move-notation-two"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="row player-b-turn">
-            <h4>Player B</h4>
-        </div>
-    </div>
+<div class="row h-100">
+    <div class="col-12">
 
+
+        <!-- Debug grid row (12 columns) -->
+        <div class="row">
+            <div class="col-1">1</div><div class="col-1">2</div><div class="col-1">3</div>
+            <div class="col-1">4</div><div class="col-1">5</div><div class="col-1">6</div>
+            <div class="col-1">7</div><div class="col-1">8</div><div class="col-1">9</div>
+            <div class="col-1">10</div><div class="col-1">11</div><div class="col-1">12</div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="row">
+            <div class="col-sm-12 col-md-9 game-display">
+                <!-- Player A -->
+                <div class="player-nameboard">
+                    <div class="col-12">
+                        <a class="player-name" id="player_b">Player B</a>
+                    </div>
+                </div>
+                <div class="board-fluid col-12">
+                    <div>
+                        <img src="{{ url_for('static', filename='image_folder/Banqi_Board.png') }}"
+                            class="img-fluid board-img"
+                            draggable="false">
+                        <div id="board"></div>
+                        <div id="game-state"></div>
+                    </div>
+                </div>
+                <!-- Player B -->
+                <div class="player-nameboard">
+                    <div class="col-12">
+                        <a class="player-name" id="player_a">Player A</a>
+                    </div>
+                </div>
+                <div class="nav-cont">
+                    <a class="nav-item nav-link" id="draw-btn" type="button">Offer Draw</a>
+                    <a class="nav-item nav-link" id="resign-btn" type="button">Resign</a>
+                    <a id="new_game"></a>
+                </div>
+            </div>
+
+            <div class="col-sm-12 col-md-3">
+                <p class="move-number">Moves:</p>
+
+                <div class="move-list" id="move-list">
+                    
+                </div>
+            </div>
+
+        </div>
+
+    </div>
 </div>
 
-<!-- 1. Load Socket.IO client library -->
+ <!--1. Load Socket.IO client library -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<!-- Include the game JS (put this file at static/js/game.js) -->
+<!--Include the game JS (put this file at static/js/game.js)-->
  <script>
     const GAME_ID = "{{ game_id }}";
 </script>

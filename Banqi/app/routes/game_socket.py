@@ -5,15 +5,30 @@ from enum import Enum, auto
 from ..routes.game import init_pos, init_piece_pool
 from flask import request
 from flask_login import current_user
+import uuid
+import time
 
 from app import db
 from .models import Game, Player, Move
 
+PENDING_DISCONNECTED_USER = {}
 PENDING_GAME_STATES = {}
 GAME_STATES = {}
 piece_notation_list = {
-    "bK":'b_king', "bA": 'b_advisor', "bE": 'b_elephant', "bR": 'b_chariot', "bH": 'b_horse', "bC": 'b_catapult', "bP": 'b_pawn',
-    "rK":'w_king', "rA": 'w_advisor', "rE": 'w_elephant', "rR": 'w_chariot', "rH": 'w_horse', "rC": 'w_catapult', "rP": 'w_pawn'
+    'b_king': 'bK',
+    'b_advisor': 'bA',
+    'b_elephant': 'bE',
+    'b_chariot': 'bR',
+    'b_horse': 'bH',
+    'b_catapult': 'bC',
+    'b_pawn': 'bP',
+    'w_king': 'rK',
+    'w_advisor': 'rA',
+    'w_elephant': 'rE',
+    'w_chariot': 'rR',
+    'w_horse': 'rH',
+    'w_catapult': 'rC',
+    'w_pawn': 'rP'
 }
 player_turn_toggle = {'A': 'B', 'B': 'A'}
 ### Socket Event Handlers ###
@@ -34,12 +49,10 @@ def join_game(data: dict) -> None:
     """
     # --- MATCHMAKING: If no game_id, find or create pending game ---
     # remember what the client originally sent so we can redirect if needed
-    orig_game_id = data.get("game_id")
-    game_id = orig_game_id
-    user_id = current_user.id if current_user.is_authenticated else 'ANONYMOUS'
-    username = current_user.username if current_user.is_authenticated else "Anonymous"
+    game_id = data.get("game_id")
+    user_id = current_user.id if current_user.is_authenticated else (f"ANON_{str(uuid.uuid4())[:12]}")
+    username = current_user.username if current_user.is_authenticated else (f"ANON_{user_id[:8]}")
     sid = request.sid  # type: ignore
-
     # --- MATCHMAKING: If no game_id, find or create pending game ---
     if not game_id:
         if PENDING_GAME_STATES:
@@ -97,6 +110,10 @@ def join_game(data: dict) -> None:
         elif game["players"]["B"].get("user_id") is None:
             game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
             player_slot = "B"
+        elif (game["players"]["A"]["user_id"] == user_id):
+            player_slot = "A"
+        elif (game["players"]["B"]["user_id"] == user_id):
+            player_slot = "B"
         else:
             # Both slots filled; this is a spectator
             player_slot = None
@@ -105,16 +122,14 @@ def join_game(data: dict) -> None:
         return
 
     # --- CHECK IF WE SHOULD MOVE FROM PENDING TO ACTIVE ---
-    if is_pending and game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
-        # Both players have joined; move to GAME_STATES and activate
-        del PENDING_GAME_STATES[game_id]
-        game["status"] = "Active"
-        GAME_STATES[game_id] = game
-        socketio.emit("game_ready", {
-            "game_id": game_id,
-            "message": "Both players joined! Game starting."
-        }, room=game_id)  # type: ignore
+    
+    print("debugging.")
+    print("game_id:", game_id)
+    print("players:", game.get("players"))
+    print("player_slot:", player_slot)
+    print("player_turn:", game.get("player_turn"))
 
+    player_turn = game.get("player_turn")
     # Send current state to joining client only
     socketio.emit("joined_game", {
         "game_id": game_id,
@@ -122,8 +137,24 @@ def join_game(data: dict) -> None:
         "moves": game.get("moves"),
         "status": game.get("status"),
         "players": game.get("players"),
-        "player_slot": player_slot
-    }, room=sid)  # type: ignore
+        "player_slot": player_slot,
+        "player_turn": player_turn,
+        "current_player_colour": game["players"][player_turn]["colour"]
+    }, to=request.sid)  # type: ignore
+
+    if is_pending and game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
+        # Both players have joined; move to GAME_STATES and activate
+        del PENDING_GAME_STATES[game_id]
+        game["status"] = "Ongoing"
+        GAME_STATES[game_id] = game
+        username_a = game["players"]["A"]["username"]
+        username_b = game["players"]["B"]["username"]
+        socketio.emit("game_ready", {
+            "game_id": game_id,
+            "username_a":username_a,
+            "username_b": username_b,
+            "message": "Both players joined! Game starting."
+        }, room=game_id)  # type: ignore
 
 @socketio.on("end_game")
 def end_game(data: dict) -> None:
@@ -138,7 +169,7 @@ def end_game(data: dict) -> None:
             return
         archive_game_to_db(game_id)
         #TODO: Temporarily commented out to prevent errors during testing.
-        #socketio.emit("game_archived", {"game_id": game_id}, room=game_id)
+        # socketio.emit("game_archived", {"game_id": game_id}, room=game_id)
     except Exception:
         # keep handler resilient; callers can check `game_archived` or logs
         return
@@ -151,11 +182,15 @@ def try_reveal_piece(data:dict) -> None:
         square = data["square"]
 
         game = GAME_STATES[game_id]
-        current_player = game["player_turn"]
+        current_player_colour = game["player_turn"]
         sid = request.sid  # type: ignore
-
         # Validate player
-        if (game["players"][current_player]["sid"] != sid): return
+        if not(current_user.is_authenticated):
+            if (game["players"][current_player_colour]["sid"] != sid) : return
+        else:
+            if (game["players"][current_player_colour]["user_id"] != current_user.id) : return
+        if (game["status"] == "Finished"): return
+
         # Validate board state
         if not (game["board"][square] == "unknown"): return
 
@@ -165,11 +200,14 @@ def try_reveal_piece(data:dict) -> None:
         # If colour is not set i.e. on first move, assign colour
         if not game["players"]["A"]["colour"]:
             set_player_colour(game_id, revealed_piece[0])
+            game["status"] = "Ongoing"
         
         # Update Board
         game["board"][square] = revealed_piece
         # Get notation using updated piece_notation_list
         notation = (f"{square} = ({piece_notation_list.get(revealed_piece)})")
+        # debug
+        print(notation)
         record_move(game_id, notation)
         socketio.emit("reveal_piece", {"square": square, "piece": revealed_piece}, room=game_id) #type: ignore
     except Exception:
@@ -191,6 +229,7 @@ def try_make_move(data: dict) -> None:
         sid = request.sid  # type: ignore
         # Validate player
         if (game["players"][player_turn]["sid"] != sid): return
+        if (game["status"] == "Finished"): return
         player_colour = game["players"][player_turn]["colour"]
         # Validate board state
         if not (board[sq1][0] == player_colour and board[sq2] == "none" and is_adjacent(sq1, sq2)): return
@@ -220,6 +259,7 @@ def try_capture(data: dict) -> None:
         sid = request.sid  # type: ignore
         # Validate player
         if (game["players"][player_turn]["sid"] != sid): return
+        if (game["status"] == "Finished"): return
         player_colour = game["players"][player_turn]["colour"]
         # Validate board state
         if not (board[sq1][0] == player_colour):
@@ -236,12 +276,43 @@ def try_capture(data: dict) -> None:
     except Exception:
         return
 
-@socketio.on("disconnect")
-def handle_disconnect() -> None:
+@socketio.on("disconnected")
+def handle_disconnect(data) -> None:
     """Handle socket disconnects: remove sid from any game's connections and
     delete finished games with no remaining connections.
+    Note, does not handle disconnects for non-logged in user, immediately considers as forfeited.
     """
-    sid = request.sid # type: ignore
+    print("detected disconnection.")
+    try:
+        if not (data):
+            return
+        game_id = data.get("game_id")
+        game = GAME_STATES[game_id]
+        if (game["status"] != "Ongoing"): return
+        sid = request.sid # type: ignore
+        user_id = current_user.id if current_user.is_authenticated else None
+        if (not user_id):
+            if (game["players"]["A"]["sid"] == sid):
+                winner = game["players"]["B"]["username"]
+                checkmate_by_disconnection(game_id, winner)
+            elif (game["players"]["B"]["sid"] == sid):
+                winner = game["players"]["A"]["username"]
+                checkmate_by_disconnection(game_id, winner)
+            return
+        if (game["players"]["A"]["user_id"] == user_id):
+            winner = game["players"]["B"]["username"]
+        else:
+            winner = game["players"]["A"]["username"]
+        
+        PENDING_DISCONNECTED_USER[user_id] = {
+            "deadline": time.time() + 15,  # 15 seconds from now
+            "game_id": game_id,
+            "winner": winner
+        }
+        print("Pending Disconnected user...")
+    except Exception:
+        return
+
     for gid in list(GAME_STATES.keys()):
         gs = GAME_STATES.get(gid)
         if not gs:
@@ -265,7 +336,53 @@ def handle_disconnect() -> None:
             except KeyError:
                 pass
 
+def disconnect_watcher():
+    while True:
+        now = time.time()
+        for user_id, data in list(PENDING_DISCONNECTED_USER.items()):
+            if now >= data["deadline"]:
+                game_id = data["game_id"]
+                winner = data["winner"]
+                checkmate_by_disconnection(game_id, winner)
+                del PENDING_DISCONNECTED_USER[user_id]
+        socketio.sleep(5)
+
+# Note: do NOT start the disconnect watcher at import time. The SocketIO
+# server is initialized in the app factory (`socketio.init_app(app)`), so the
+# background task must be started after initialization. The app factory will
+# call `socketio.start_background_task(game_socket.disconnect_watcher)`.
+
+@socketio.on("try_resign")
+def try_resign(data: dict) -> None:
+    try:
+        game_id = data["game_id"]
+        game = GAME_STATES[game_id]
+        sid = request.sid  # type: ignore
+        user_id = current_user.id if current_user.is_authenticated else None
+        # Validate player
+        if (game["players"]["A"]["sid"] == sid or game["players"]["A"]["user_id"] == user_id):
+            resignation_player = "A"
+            winner_team = "B"
+        elif (game["players"]["B"]["sid"] == sid or game["players"]["B"]["user_id"] == user_id):
+            resignation_player = "B"
+            winner_team = "A"
+        else:
+            return
+        
+        if (game["status"] != "Ongoing"): return
+
+        # Validated; resign the game.
+        winner = game["players"][winner_team]["username"]
+        game["status"] = "Finished"
+        game["winner"] = winner
+        archive_game_to_db(game_id)
+        # mark finished and archive
+        socketio.emit("game_over", {"game_id": game_id, "winner": winner}, room=game_id) # type: ignore
+    except Exception:
+        return
+    
 ### Game Logic Functions ###
+
 
 class PieceType(Enum):
     w_king = auto()
@@ -381,13 +498,17 @@ def is_checkmate(game_id: str) -> bool:
 
         # Determine winner
         if not white_present and black_present:
-            winner = "b"
+            winner_team = "b"
         elif not black_present and white_present:
-            winner = "w"
+            winner_team = "w"
         else:
             return False
 
         # mark finished and archive
+        if (game["players"]["A"]["colour"] == winner_team):
+            winner = game["players"]["A"]["username"]
+        else:
+            winner = game["players"]["B"]["username"]
         GAME_STATES[game_id]["status"] = "Finished"
         GAME_STATES[game_id]["winner"] = winner
         try:
@@ -403,6 +524,20 @@ def is_checkmate(game_id: str) -> bool:
         return True
     except Exception:
         return False
+
+def checkmate_by_disconnection(game_id: str, winner_colour: str) -> None:
+    """Handle checkmate due to player disconnection."""
+    try:
+        game = GAME_STATES[game_id]
+        if game["status"] != "Ongoing":
+            return
+        
+        game["status"] = "Finished"
+        game["winner"] = winner_colour
+        archive_game_to_db(game_id)
+        socketio.emit("game_over", {"game_id": game_id, "winner": winner_colour}, room=game_id) # type: ignore
+    except Exception:
+        return
 
 def can_capture(attacker: PieceType, defender: PieceType) -> bool:
     return defender in CAPTURE_RULES.get(attacker, set())
@@ -472,7 +607,7 @@ def init_game_state():
             "A": [],
             "B": []
         },
-        "status": "Active",
+        "status": "Starting",
         "winner": None,
         # runtime-only: track connected socket ids (not persisted)
         "connections": set()
@@ -480,6 +615,9 @@ def init_game_state():
 
 ### Database handling for archiving/restoring games ###
 
+# Board Schema:
+# - Game: id (str, PK), board (JSON), piece_pool (JSON), player_turn (str),
+#         move_count (int), status (str), result (str)
 def load_game_from_db(game_id: str):
     """Load an archived game from the DB and return an in-memory state dict.
 
@@ -588,5 +726,3 @@ def archive_game_to_db(game_id) -> None:
         db.session.rollback()
         print(f"[ARCHIVE-ERROR] Failed to archive game {game_id}: {e}")
         return
-
-

@@ -26,45 +26,40 @@
     <body>
         <div class="container-fluid">
             <div class="row">
-                <div class="col-sm-4 col-md-3 col-lg-3 col-xl-2" style="background: rgba(83, 54, 19, 0.683);">
-                    <nav class="navbar" style="height: flex;">
-                        <ul class="nav">
-                            <li class="nav-cont col-12">
-                                <a class="nav-item nav-link" id="Home" href="{{ url_for('home.home') }}" type="button">Home</a>
-                            </li>
-                            <li class="nav-cont col-12">
-                                <a class="nav-item nav-link"  id="Play" type="button" href="{{ url_for('play.game', game_id='') }}">Play</a>
-                            </li>
-                            {% if current_user.is_authenticated %}
-                            <li class="nav-cont col-12">
-                                <a class="nav-item nav-link" id="Profile" type="button" href="#">Profile</a>
-                            </li>
-                            <li class="nav-cont col-12">
-                                <a class="nav-item nav-link" id="Setting" type="button" href="#">Setting</a>
-                            </li>
-                            <li>
-                                <a href="{{ url_for('auth.logout') }}" class="btn btn-primary" tabindex="-1" role="button" aria-disabled="true">Log Out</a>
-                            </li>
-                            {% else %}
-                            <li>
-                                <a href="{{ url_for('auth.login') }}" class="btn btn-primary" tabindex="-1" role="button" aria-disabled="true">Log In</a>
-                            </li>
-                            {% endif %}
-                        </ul>
-                        <ul class="nav"></ul>
-                            <li class="nav-item">
-                                <a class="nav-link" href="#">Link</a>
-                            </li>
-                        </ul>
+                <div class="col-sm-4 col-md-3 col-lg-3 col-xl-2 nav-column" style="background: rgba(83, 54, 19, 0.683);">
+                    <nav class="navbar navbar-expand-sm">
+                        <button class = "navbar-toggler nav-cont" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                            <span class="navbar-toggler-icon"></span>
+                        </button>
+                        <div class="collapse navbar-collapse" id="mainNavbar">
+                            <ul class="nav nav-cont row">
+                                <li class="nav-cont col-12">
+                                    <a class="nav-item nav-link" id="Home" href="{{ url_for('home.home') }}" type="button">Home</a>
+                                </li>
+                                <li class="nav-cont col-12">
+                                    <a class="nav-item nav-link"  id="Play" type="button" href="{{ url_for('play.game', game_id='') }}">Play</a>
+                                </li>
+                                {% if current_user.is_authenticated %}
+                                <li class="nav-cont col-12">
+                                    <a class="nav-item nav-link" id="Profile" type="button" href="#">Profile</a>
+                                </li>
+                                <li class="nav-cont col-12">
+                                    <a class="nav-item nav-link" id="Setting" type="button" href="#">Setting</a>
+                                </li>
+                                <li class="nav-cont col-12">
+                                    <a href="{{ url_for('auth.logout') }}" class="nav-item nav-link" type="button" aria-disabled="true">Log Out</a>
+                                </li>
+                                {% else %}
+                                <li class="nav-cont col-12">
+                                    <a href="{{ url_for('auth.login') }}" class="nav-item nav-link" type="button" aria-disabled="true">Log In</a>
+                                </li>
+                                {% endif %}
+                            </ul>
+                        </div>
                     </nav>
                 </div>
-                <main class="col-sm-8 col-md-9 col-lg-9 col-xl-10" style="background: rgba(125, 90, 26, 0.683); height:100vh;">
-                    <div class="container-fluid center">
-                        <div class="row">
-                    
-                        {% block content %}{% endblock %}
-                        </div>
-                    </div>
+                <main class="col-sm-8 col-md-9 col-lg-9 col-xl-10 min-vh-100" style="background: #7d5a1aae;">
+                    {% block content %}{% endblock %}
                 </main>
             </div>
         </div>
