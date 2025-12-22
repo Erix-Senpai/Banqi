@@ -5,11 +5,12 @@ let piece_selected = null;  // stores square of 1st click
 let square_selected = null;   // stores piece name of 1st click
 let img_selected = null;
 // let move_mark = null;
+
+// Initialise by default.
 let player_turn = 'A';
-let player_a_colour = "";
-let player_b_colour = "";
-let current_player = "u";
-let move_count = 0;
+let player_slot = null;
+let current_player_colour = null;
+let game_status = "Starting";
 
 //calls upon initialisation.
 socket.on("connect", () => {
@@ -17,6 +18,7 @@ socket.on("connect", () => {
     // The join_game handler will manage matchmaking
     socket.emit("join_game", {game_id: GAME_ID || null});
 });
+
 
 socket.on("redirect_to_create", (data) => {
     // No pending games available; redirect to create_game
@@ -32,7 +34,20 @@ socket.on("redirect_to_game", (data) => {
 });
 
 socket.on("game_ready", (data) => {
-    console.log("Game ready! Both players joined:", data);
+    game_status = "Ongoing";
+    console.debug("Player Slot:", player_slot);
+    if (player_slot === "B"){
+        username_a = data.username_b;
+        username_b = data.username_a;
+    }
+    else{
+        username_a = data.username_a;
+        username_b = data.username_b;
+    }
+    console.debug("username_a:",username_a, "(You)");
+    console.debug("username_b", username_b);
+    render_nameplate(username_a, username_b);
+    console.debug("game Status updated to Ongoing.")
 });
 
 socket.on("error", (data) => {
@@ -45,13 +60,57 @@ socket.on("joined_game", (data) => {
 
     // NOW initialize board
     render_board(data.board);
+    console.debug("test");
+
+    render_move_history(
+        data.moves["A"] || [],
+        data.moves["B"] || []
+    );
+    console.debug("successfully rendered move history.");
+
+    // Initialise board data. Differs for different user.
+    player_turn = data.player_turn; // A or B.
+    player_slot = data.player_slot; // A or B, or None / Spectator.
+    current_player_colour = data.current_player_colour; // w or b, nullable.
+    game_status = data.status; // Starting / Ongoing / Finished.
+
+    console.debug("player_turn:" + player_turn);
+    console.debug("player_slot:" + player_slot);
+    console.debug("current_player_colour:" + current_player_colour);
+    console.debug("game_status:" + game_status);
 });
 
 socket.on("game_over", (data) => {
-    const {result} = data;
-    alert(`Game Over! Result: ${result}`);
+    const winner = data.winner;
+    alert(`Game Over! Winner: ${winner}`);
+
+    game_status = "Finished";
+    new_game_link = document.getElementById("new_game");
+    new_game_link.className = "nav-item nav-link";
+    new_game_link.setAttribute("type","button");
+    new_game_link.innerHTML = `<a href="/play/game">New Game</a>`;
 });
 
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    const resignBtn = document.getElementById("resign-btn");
+
+    if (resignBtn) {
+        resignBtn.addEventListener("click", handleResign);
+    }
+});
+
+function handleResign() {
+    if (game_status != "Ongoing"){
+        return;
+    }
+    if (!confirm("Are you sure you want to resign?")){
+        return;
+    }
+    socket.emit("try_resign", {game_id: GAME_ID});
+    return;
+}
 // socket listener on 'board_state', accept data as pos{square: piece, ...}, then call render_board(pos)
 
 
@@ -72,9 +131,11 @@ function render_board(pos){
 
         // addEventListener to img, on click, decide if board needs to be updated.
         img.addEventListener("click", () => {
+            if (game_status === "Finished") return;
             piece_onclick(img);
         });
         img.addEventListener("contextmenu",(event) => {
+            if (game_status === "Finished") return;
             event.preventDefault();
             piece_onrightclick();
         });
@@ -86,28 +147,75 @@ function render_board(pos){
     }
 }
 
-function render_move(notations){
-    notation = String(notations)
-    const p = document.createElement("p");
-    p.textContent = notation;
-    
-    if (player_turn === 'A'){
+function render_nameplate(username_a, username_b){
+    const player_a = document.getElementById("player_a");
+    const player_b = document.getElementById("player_b");
 
-        const notationDiv = document.getElementById("move-notation-one");
-        notationDiv.appendChild(p);
+    player_a.setAttribute("type", "button");
+    player_a.innerHTML = `<a class="username-item username-link" href="/user/${username_a}">${username_a} (You)</a>`;
 
-        const m = document.createElement("p");
-        move_count += 1;
-        m.textContent = move_count;
-        const movenumberDiv = document.getElementById("move-number");
-        movenumberDiv.appendChild(m);
+    player_b.setAttribute("type", "button");
+    player_b.innerHTML = `<a class="username-item username-link" href="/user/${username_b}">${username_b}</a>`;
+};
 
-        player_turn = 'B';
+let moveCount = 0;
+
+function render_move(notationA = null, notationB = null) {
+    const container = document.getElementById("move-list");
+
+    // Player A move → start a new turn
+    if (notationA && notationA !== "none") {
+        moveCount++;
+
+        const movCol = document.createElement("div");
+        movCol.className = "mov-col";
+
+        // Move number
+        const moveNum = document.createElement("p");
+        moveNum.textContent = `${moveCount}.`;
+
+        // Player A move
+        const pA = document.createElement("p");
+        pA.textContent = notationA;
+
+        // Placeholder for Player B (optional but keeps layout stable)
+        const pB = document.createElement("p");
+        pB.textContent = "";
+
+        movCol.appendChild(moveNum);
+        movCol.appendChild(pA);
+        movCol.appendChild(pB);
+
+        container.appendChild(movCol);
     }
-    else if (player_turn === 'B'){
-        const notationDiv = document.getElementById("move-notation-two");
-        notationDiv.appendChild(p);
-        player_turn = 'A';
+
+    // Player B move → fill last turn
+    if (notationB && notationB !== "none") {
+        const lastTurn = container.lastElementChild;
+        if (!lastTurn) return;
+
+        const pTags = lastTurn.querySelectorAll("p");
+        if (pTags.length >= 3) {
+            pTags[2].textContent = notationB;
+        }
+    }
+}
+
+function render_move_history(movesA = [], movesB = []) {
+    const container = document.getElementById("move-list");
+
+    // Reset state
+    container.innerHTML = "";
+    moveCount = 0;
+
+    const maxLen = Math.max(movesA.length, movesB.length);
+
+    for (let i = 0; i < maxLen; i++) {
+        const a = movesA[i] ?? null;
+        const b = movesB[i] ?? null;
+
+        // Feed into existing logic
+        render_move(a, b);
     }
 }
 
@@ -133,20 +241,32 @@ function assign_selected(img){
     img_selected = img;
     img.style.border = "0.2vw solid #e3d89ae6";
 }
-function alternate_current_player(){
-    if (current_player === "w"){
-        current_player = "b";
+function alternate_current_player_colour(){
+    if (current_player_colour === "w"){
+        current_player_colour = "b";
         turn = document.getElementById("player-a-turn");
-        turn.style.colour = "dark-grey";
     }
-    else if (current_player === "b"){
-        current_player = "w";
+    else if (current_player_colour === "b"){
+        current_player_colour = "w";
         turn = document.getElementById("player-a-turn");
-        turn.style.colour = "red";
+    }
+    if (player_turn === 'A'){
+
+        player_turn = 'B';
+    }
+    else if (player_turn === 'B'){
+        player_turn = 'A';
     }
 }
 // on piece_onclick, perform a two-click-confirmation moves. Then, process the user's move.
 function piece_onclick(img){
+    console.debug("player_turn: ", player_turn, "player_slot: ", player_slot);
+    if (player_turn !== player_slot){
+        return;
+    }
+    if (game_status !== "Ongoing"){
+        return;
+    }
     const piece = img.dataset.piece;
     const square = img.dataset.square;
     //if piece_selected, else
@@ -212,6 +332,7 @@ function fetch_game(game_id){
     });
 }
 
+
 // calculate_p to map the board by correctly positioning them to the UI by intaking square{file:str,rank:int}, and returns pos.
 function compute_pos(square){
     const file = square[0];
@@ -228,7 +349,7 @@ function compute_pos(square){
 }
 
 function validate_selected_piece(piece){
-    if (piece.startsWith(current_player) || piece.startsWith('u')){
+    if (piece.startsWith(current_player_colour) || piece.startsWith('u')){
         return true;
     }
     else{
@@ -249,6 +370,20 @@ function isAdjacent(sq1, sq2) {
 
 socket.on("disconnect", () => {
     console.log("Disconnected from server");
+    // note: cannot reliably emit to server from within the 'disconnect' event
+    // because the transport is already gone. Use beforeunload to notify server
+    // when the user voluntarily closes the page.
+});
+
+// Notify server when the page is about to unload so it can mark a pending
+// disconnect. This has a better chance of delivering than emitting from
+// the socket 'disconnect' handler.
+window.addEventListener('beforeunload', (ev) => {
+    try {
+        socket.emit('disconnected', { game_id: GAME_ID });
+    } catch (e) {
+        // best-effort; ignore failures
+    }
 });
 
 // socket listener on piece_revealed, accept data as data{square, piece},
@@ -268,11 +403,17 @@ socket.on("reveal_piece", data => {
             piece_notation = piece;
         }
         notation = (`${square}=(${piece_notation})`);
-        render_move(notation);
-        if (current_player === "u"){
-            current_player = piece[0];
+        if (current_player_colour === "u" || current_player_colour === null){
+            current_player_colour = piece[0];
         }
-        alternate_current_player();
+        if (player_turn === 'A'){
+        render_move(notation, null);
+        }
+        else if (player_turn === 'B'){
+        render_move(null, notation);
+        }
+    
+        alternate_current_player_colour();
 });
 
 socket.on("make_capture", data => {
@@ -286,8 +427,13 @@ socket.on("make_capture", data => {
     img1.src = `/static/image_folder/empty.png`;
     img1.dataset.piece = "none";
     notation = (`${square1} x ${square2}`);
-    render_move(notation);
-    alternate_current_player();
+    if (player_turn === 'A'){
+        render_move(notation, null);
+    }
+    else if (player_turn === 'B'){
+        render_move(null, notation);
+    }
+    alternate_current_player_colour();
 });
 socket.on("make_move", data => {
     const {square1, square2, piece} = data;
@@ -301,9 +447,15 @@ socket.on("make_move", data => {
     img1.dataset.piece = "none";
 
     notation = (`${square1} - ${square2}`);
-    render_move(notation);
-    alternate_current_player();
+    if (player_turn === 'A'){
+        render_move(notation, null);
+    }
+    else if (player_turn === 'B'){
+        render_move(null, notation);
+    }
+    alternate_current_player_colour();
 });
+
 
 function getKeyByValue(object, value) {
     return Object.keys(object).find(key => object[key] === value);

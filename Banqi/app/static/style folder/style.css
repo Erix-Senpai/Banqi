@@ -13,6 +13,7 @@
     white-space: nowrap;
     text-decoration: none;
     text-align: center;
+    align-content: center;
     border-radius: 0.25rem;
     list-style: none;
     text-decoration: none;
@@ -33,48 +34,19 @@
 }
 
 
-.board-svg {
-    display: block;
-    width: 100%;          /* fill col-9 horizontally */
-    height: auto;         /* keep correct aspect ratio */
-    aspect-ratio: 4 / 3;  /* same as your image */
-    margin: 0 auto;
-}
-
-.board2-svg {
-    width: 100%;
-    height: 400px;
-    background-image: url('static/image folder/Banqi_Board.png');
-    background-repeat: no-repeat;
-    background-size: contain;
-    border: 1px solid red;
-}
 
 .board-fluid {
     position: relative;
 }
 
-.board-container {
-    position: relative;
-}
-
-.board {
-    position: relative;
-    width: 100%;                /* Always fill col-9 horizontally */
-    padding-top: 75%;           /* Sets aspect ratio (4:3 = 75%) */
-    background-image: url("../image folder/Banqi_Board.png");
-    background-size: contain;   /* Fit image inside div */
-    background-repeat: no-repeat;
-    background-position: center;
-}
 
 .board-img {
     display: block;         /* removes inline gap below img */
     width: 100%;            /* ensures full column width */
     height: auto;           /* keeps proportions */
     object-fit: contain;    /* ensures full image visible */
-    border-radius: 0.5rem;  /* optional rounded edges */
-    margin-top: 1rem;       /* optional top gap */
+    border-radius: 0.25rem;  /* optional rounded edges */
+    margin-top: 0;       /* optional top gap */
     -webkit-user-drag: none;
     user-select: none;
     z-index: 1;
@@ -91,20 +63,132 @@
     clip-path: circle(50%);
 }
 
-#board {
-    position: absolute;
-    z-index: 3;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-}
 .piece-on-select{
     box-shadow: 0 0 0.8vw 0.4vw rgba(227, 216, 154, 0.9);
 }
-.player-a-turn{
+
+.player-nameboard{
     background-color: grey;
+    position: relative;
+    padding-bottom: 1px;
+    margin-top: None;
+    margin-bottom: None;
 }
-.player-b-turn{
-    background-color: red;
+
+.username-item {
+    font-family: "Rubik Mono One", Helvetica, sans-serif;
+    white-space: nowrap;
+    text-decoration: none;
+    text-align: center;
+    align-content: center;
+    border-radius: 0.25rem;
+    list-style: none;
+    text-decoration: none;
+    color:black;
+    flex:auto;
+}
+
+.username-link{
+    font-size: clamp(0.4rem, 0.3vw + 1rem, 2vw);
+    text-align: left;
+}
+
+.player-name{
+    font-size: clamp(0.4rem, 0.5vh + 2rem, 2vw);
+    text-decoration: none;
+    color:white;
+}
+
+.game-display{
+    margin-top: 1vh;
+}
+
+.nav-column {
+    min-height: auto;
+}
+
+/* Sidebar mode (sm and up) */
+@media (min-width: 576px) {
+    .nav-column {
+        min-height: 100vh;
+    }
+}
+/* Base styling */
+.move-list {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Scrollbar width */
+.move-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+/* Track */
+.move-list::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+}
+
+/* Thumb */
+.move-list::-webkit-scrollbar-thumb {
+    background-color: #6b4f1d;
+    border-radius: 10px;
+}
+
+/* Hover effect */
+.move-list::-webkit-scrollbar-thumb:hover {
+    background-color: #4d3813;
+}
+
+/* Each turn */
+.mov-col {
+    display: grid;
+    grid-template-columns: 1fr 3fr 4fr;
+    column-gap: 0.5rem;
+    padding: 0.25rem 0.25rem;
+    margin-left: 0.25rem 0.25rem;
+    border-radius: None;
+    background-color: #ae9666ae;
+    white-space: nowrap;
+    font-size: clamp(0.5rem, 1.1vw, 10vw);
+}
+
+/* Desktop: vertical list */
+@media (min-width: 768px) {
+    .move-list {
+        flex-direction: column;
+        max-height: clamp(14rem, 23.2vh + 41.43vw - 18.6rem, 90vh);
+        overflow-y: auto;
+    }
+}
+
+/* Mobile: horizontal scroll */
+@media (max-width: 767.98px) {
+    .move-list {
+        flex-direction: row;
+        overflow-x:auto;
+        overflow-y: hidden;
+    }
+
+    .mov-col {
+        flex: 0 0 auto;
+        grid-template-columns: 1fr 4fr 4fr;
+        font-size: clamp(0.75rem, 0.25rem + 0.75vw, 25vw)
+    }
+
+    .move-list::-webkit-scrollbar-track {
+        background: rgba(184, 7, 7, 0.1);
+        border-radius: 10px;
+        }
+}
+
+
+
+.move-number {
+    font-family: 'Nunito', sans-serif;
+    font-size: clamp(0.4rem, 0.3vw + 1rem, 2vw);
+    overflow-y: auto;
+    font-style: bold;
+    text-align: center;
 }

@@ -37,6 +37,9 @@ def create_app():
     app.register_blueprint(auth_bp)
 
     # import socket handlers (module-level registers)
+    # NOTE: do NOT start background tasks from the module import; the tasks
+    # that rely on `socketio` being initialized are started after calling
+    # `socketio.init_app(app)` below.
     from .routes import game_socket
 
     # make current_user available in templates
@@ -51,4 +54,13 @@ def create_app():
         return db.session.get(User, int(user_id))
 
     socketio.init_app(app)
+
+    # Now that Socket.IO server is initialized, start any background tasks
+    # defined in the socket handlers (e.g. disconnect watcher).
+    try:
+        socketio.start_background_task(game_socket.disconnect_watcher)
+    except Exception:
+        # be tolerant if background task cannot be started in this environment
+        pass
+
     return app
