@@ -19,6 +19,7 @@
     text-decoration: none;
     color:black;
     flex:auto;
+    z-index:1;
     
 }
 .nav-item.active {
@@ -191,4 +192,21 @@
     overflow-y: auto;
     font-style: bold;
     text-align: center;
+
+}
+
+.draw-offer{
+    font-size: 0.8rem;
+    align-items: center;
+    font-family: "Rubik Mono One", Helvetica, sans-serif;
+    white-space: nowrap;
+    text-decoration: none;
+    text-align: center;
+    align-content: center;
+    border-radius: 0.25rem;
+    list-style: none;
+    text-decoration: none;
+    color:black;
+    flex:auto;
+    z-index:1;
 }

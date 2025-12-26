@@ -86,11 +86,123 @@ socket.on("game_over", (data) => {
 
     game_status = "Finished";
     new_game_link = document.getElementById("new_game");
-    new_game_link.className = "nav-item nav-link";
     new_game_link.setAttribute("type","button");
-    new_game_link.innerHTML = `<a href="/play/game">New Game</a>`;
+    new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
 });
 
+// Incoming draw request from opponent: prompt user to accept/decline
+socket.on("draw_request", (data) => {
+    // data: {game_id, from, from_username}
+    if (game_status !== "Ongoing") return;
+
+    const draw_btn = document.getElementById("draw-btn");
+    const draw_offer_decline = document.getElementById("draw-offer-decline");
+    
+    if (!draw_offer_decline)
+    {
+        const aA = document.createElement("a");
+        aA.textContent = "❌";
+        aA.className = "draw-offer";
+        aA.id = "draw-offer-decline";
+        aA.setAttribute("type", "button");
+
+        const aB = document.createElement("a");
+        aB.textContent = "✔";
+        aB.className = "draw-offer";
+        aB.id = "draw-offer-accept";
+        aB.setAttribute("type", "button");
+
+        draw_btn.appendChild(aA);
+        draw_btn.appendChild(aB);
+
+    }
+    //<a class="draw-offer" id="draw-offer-decline" type="button">❌</a>
+    // <a class="draw-offer" id="draw-offer-accept" type="button">✔</a>
+});
+
+document.addEventListener("DOMContentLoaded", () => {
+    const draw_decine_btn = document.getElementById("draw-offer-decline");
+
+    if (draw_decine_btn) {
+        draw_decine_btn.addEventListener("click", handleDrawDecline);
+    }
+});
+
+function handleDrawDecline(){
+    const draw_offer_decline = document.getElementById("draw-offer-decline");
+    const draw_offer_accept = document.getElementById("draw-offer-accept");
+    if (draw_offer_decline && draw_offer_accept){
+        draw_offer_decline.remove();
+        draw_offer_accept.remove();
+    }
+
+    socket.emit("respond_draw", {game_id: GAME_ID, accept: "decline"});
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    const draw_accept_btn = document.getElementById("draw-offer-accept");
+
+    if (draw_accept_btn) {
+        draw_accept_btn.addEventListener("click", handleDrawAccept);
+    }
+});
+
+function handleDrawAccept(){
+    draw_btn_reply();
+    socket.emit("respond_draw", {game_id: GAME_ID, accept: "accept"});
+}
+function draw_btn_reply(){
+    const draw_offer_decline = document.getElementById("draw-offer-decline");
+    const draw_offer_accept = document.getElementById("draw-offer-accept");
+    if (draw_offer_decline && draw_offer_accept){
+        draw_offer_decline.remove();
+        draw_offer_accept.remove();
+    }
+}
+
+socket.on("draw_offered", (data) => {
+    // notify offerer that the request was sent
+    if (data && data.game_id === GAME_ID){
+        const draw_btn = document.getElementById("draw-btn");
+        const aA = document.createElement("a");
+        aA.textContent.remove();
+        aA.textContent = "Draw Offered.";
+        aA.className = "draw-offer";
+        aA.id = "draw-offer-display-btn";
+        aA.setAttribute("type", "button");
+        draw_btn.appendChild(aA);
+    }
+});
+
+socket.on("draw_declined", (data) => {
+    // notify the offerer that opponent declined
+    if (data && data.game_id === GAME_ID){
+        if (game_status !== "Ongoing")
+        {
+            return;
+        }
+        else {
+            const draw_btn = document.getElementById("draw-btn");
+            const aA = document.createElement("a");
+            aA.textContent = "Offer Declined.";
+            aA.className = "draw-offer";
+            aA.id = "draw-offer-display-btn";
+            aA.setAttribute("type", "button");
+            draw_btn.appendChild(aA);
+
+        }
+    }
+});
+document.addEventListener("DOMContentLoaded", () => {
+    const draw_offer_display_btn = document.getElementById("draw-offer-display-btn");
+
+    if (draw_offer_display_btn) {
+        draw_offer_display_btn.addEventListener("click", ()=>{
+            draw_offer_display_btn.remove();
+        });
+    }
+});
 
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -112,6 +224,32 @@ function handleResign() {
     return;
 }
 // socket listener on 'board_state', accept data as pos{square: piece, ...}, then call render_board(pos)
+
+
+// Handle Draw Button
+document.addEventListener("DOMContentLoaded", () => {
+    const draw_btn = document.getElementById("draw-btn");
+    if (draw_btn) {
+        draw_btn.addEventListener("click", ()=> handleDrawOffer());
+    }
+});
+
+
+function handleDrawOffer() {
+    const draw_btn = document.getElementById("draw-btn");
+    if (game_status != "Ongoing"){
+        return;
+    }
+    if (draw_btn.textContent === "Draw Offered" || draw_btn.textContent !== "Offer Draw"){
+        return;
+    }
+    draw_btn.textContent = "Draw offered";
+    draw_btn.ariaDisabled = true;
+    console.debug(String(draw_btn.textContent));
+
+    socket.emit("try_draw", {game_id: GAME_ID});
+}
+
 
 
 // render_board by deploying the board statically.
@@ -199,6 +337,8 @@ function render_move(notationA = null, notationB = null) {
             pTags[2].textContent = notationB;
         }
     }
+
+    draw_btn_reply();
 }
 
 function render_move_history(movesA = [], movesB = []) {

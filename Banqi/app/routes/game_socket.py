@@ -351,12 +351,115 @@ def disconnect_watcher():
 # server is initialized in the app factory (`socketio.init_app(app)`), so the
 # background task must be started after initialization. The app factory will
 # call `socketio.start_background_task(game_socket.disconnect_watcher)`.
+@socketio.on("try_draw")
+def try_draw(data: dict) -> None:
+    try:
+        game_id = data["game_id"]
+        game = GAME_STATES[game_id]
+
+        if (game["status"] != "Ongoing"): return
+
+        #TODO: Add a function that disallows user to spam draw.
+        sid = request.sid  # type: ignore
+        user_id = current_user.id if current_user.is_authenticated else None
+        # Validate player
+
+        player_a = game["players"]["A"]
+        player_b = game["players"]["B"]
+        
+        if (player_a["sid"] == sid or player_a["user_id"] == user_id):
+            draw_offer = "A"
+            player_a["req"] = "draw"
+        elif (player_b["sid"] == sid or player_b["user_id"] == user_id):
+            draw_offer = "B"
+            player_b["req"] = "draw"
+        else:
+            return
+        is_draw(game_id)
+        # Identify opponent slot and sid
+        opponent_slot = player_turn_toggle[draw_offer]
+        opponent = game["players"].get(opponent_slot, {})
+        opponent_sid = opponent.get("sid")
+
+        # Notify opponent of draw request if they are connected
+        offerer_username = game["players"][draw_offer].get("username")
+        payload = {"game_id": game_id, "from": draw_offer, "from_username": offerer_username}
+        if opponent_sid:
+            socketio.emit("draw_request", payload, to=opponent_sid)  # type: ignore
+            # Optionally inform the offerer that the request was sent
+            socketio.emit("draw_offered", {"game_id": game_id}, to=sid)  # type: ignore
+        else:
+            # Opponent not connected; immediately inform offerer that draw cannot be delivered
+            socketio.emit("draw_declined", {"game_id": game_id, "reason": "opponent_not_connected"}, to=sid)  # type: ignore
+    except Exception:
+        return
+
+
+def draw_toggle(game_id: str) -> None:
+    players = GAME_STATES[game_id]['players']
+    players["A"]["req"] = None
+    players["B"]["req"] = None
+
+def is_draw(game_id: str) -> None:
+    game = GAME_STATES[game_id]
+    player_a = game["players"]["A"]
+    player_b = game["players"]["B"]
+    if (player_a["req"] == "draw" and player_b["req"] == "draw"):
+            # End the game as a draw
+            game["status"] = "Finished"
+            # Use a neutral 'Draw' marker for winner field so client shows appropriately
+            game["winner"] = "Draw"
+            socketio.emit("game_over", {"game_id": game_id, "winner": "Draw"}, room=game_id)  # type: ignore
+            archive_game_to_db(game_id)
+            return
+
+@socketio.on("respond_draw")
+def respond_draw(data: dict) -> None:
+    """Handle opponent's response to a draw request.
+
+    Expects `{"game_id": ..., "accept": bool}`. If accepted the game is
+    finished as a draw and archived; if declined, notify the offering player.
+    """
+    try:
+        game_id = str(data.get("game_id"))
+        accept = bool(data.get("accept"))
+        decline = bool(data.get("decline"))
+        game = GAME_STATES[game_id]
+        sid = request.sid  # type: ignore
+        user_id = current_user.id if current_user.is_authenticated else None
+
+        # Determine which slot is responding
+        if (game["players"]["A"]["sid"] == sid or game["players"]["A"]["user_id"] == user_id):
+            responder = "A"
+        elif (game["players"]["B"]["sid"] == sid or game["players"]["B"]["user_id"] == user_id):
+            responder = "B"
+        else:
+            return
+
+        # Find the offering player (the other slot)
+        offerer = player_turn_toggle[responder]
+        offerer_sid = game["players"][offerer].get("sid")
+
+        if accept:
+            game["players"][responder]["req"] = "draw"
+            is_draw(game_id)
+            # End the game as a draw
+        elif decline:
+            # Notify offerer that draw was declined
+            if offerer_sid:
+                socketio.emit("draw_declined", {"game_id": game_id, "by": responder}, to=offerer_sid)  # type: ignore
+
+    except Exception:
+        return
 
 @socketio.on("try_resign")
 def try_resign(data: dict) -> None:
     try:
         game_id = data["game_id"]
         game = GAME_STATES[game_id]
+
+        if (game["status"] != "Ongoing"): return
+
         sid = request.sid  # type: ignore
         user_id = current_user.id if current_user.is_authenticated else None
         # Validate player
@@ -369,7 +472,6 @@ def try_resign(data: dict) -> None:
         else:
             return
         
-        if (game["status"] != "Ongoing"): return
 
         # Validated; resign the game.
         winner = game["players"][winner_team]["username"]
@@ -634,8 +736,8 @@ def load_game_from_db(game_id: str):
             "player_turn": g.player_turn,
             "move_count": g.move_count,
             "players": {
-                "A": {"user_id": None, "sid": None, "username": None, "colour": None},
-                "B": {"user_id": None, "sid": None, "username": None, "colour": None},
+                "A": {"user_id": None, "sid": None, "username": None, "colour": None, "req": None},
+                "B": {"user_id": None, "sid": None, "username": None, "colour": None, "req": None},
             },
             "moves": {"A": [], "B": []},
             "status": g.status,
