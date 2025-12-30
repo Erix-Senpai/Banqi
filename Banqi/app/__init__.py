@@ -58,7 +58,7 @@ def create_app():
     # Now that Socket.IO server is initialized, start any background tasks
     # defined in the socket handlers (e.g. disconnect watcher).
     try:
-        socketio.start_background_task(game_socket.disconnect_watcher)
+        socketio.start_background_task(game_socket.disconnect_watcher, app)
     except Exception:
         # be tolerant if background task cannot be started in this environment
         pass

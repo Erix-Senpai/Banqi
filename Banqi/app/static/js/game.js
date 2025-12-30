@@ -11,7 +11,7 @@ let player_turn = 'A';
 let player_slot = null;
 let current_player_colour = null;
 let game_status = "Starting";
-
+let is_player = false;
 //calls upon initialisation.
 socket.on("connect", () => {
     // GAME_ID can be empty string if user clicked "Play" without a URL game_id
@@ -35,7 +35,7 @@ socket.on("redirect_to_game", (data) => {
 
 socket.on("game_ready", (data) => {
     game_status = "Ongoing";
-    console.debug("Player Slot:", player_slot);
+    
     if (player_slot === "B"){
         username_a = data.username_b;
         username_b = data.username_a;
@@ -44,10 +44,11 @@ socket.on("game_ready", (data) => {
         username_a = data.username_a;
         username_b = data.username_b;
     }
-    console.debug("username_a:",username_a, "(You)");
-    console.debug("username_b", username_b);
+    let text_filler = "";
+    if (is_player){
+        text_filler = "(You)"
+    }
     render_nameplate(username_a, username_b);
-    console.debug("game Status updated to Ongoing.")
 });
 
 socket.on("error", (data) => {
@@ -60,24 +61,18 @@ socket.on("joined_game", (data) => {
 
     // NOW initialize board
     render_board(data.board);
-    console.debug("test");
 
     render_move_history(
         data.moves["A"] || [],
         data.moves["B"] || []
     );
-    console.debug("successfully rendered move history.");
 
     // Initialise board data. Differs for different user.
     player_turn = data.player_turn; // A or B.
     player_slot = data.player_slot; // A or B, or None / Spectator.
     current_player_colour = data.current_player_colour; // w or b, nullable.
     game_status = data.status; // Starting / Ongoing / Finished.
-
-    console.debug("player_turn:" + player_turn);
-    console.debug("player_slot:" + player_slot);
-    console.debug("current_player_colour:" + current_player_colour);
-    console.debug("game_status:" + game_status);
+    is_player = data.is_player;
 });
 
 socket.on("game_over", (data) => {
@@ -88,112 +83,45 @@ socket.on("game_over", (data) => {
     new_game_link = document.getElementById("new_game");
     new_game_link.setAttribute("type","button");
     new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
-});
 
-// Incoming draw request from opponent: prompt user to accept/decline
-socket.on("draw_request", (data) => {
-    // data: {game_id, from, from_username}
-    if (game_status !== "Ongoing") return;
-
+    clear_draw_status();
     const draw_btn = document.getElementById("draw-btn");
-    const draw_offer_decline = document.getElementById("draw-offer-decline");
-    
-    if (!draw_offer_decline)
-    {
-        const aA = document.createElement("a");
-        aA.textContent = "❌";
-        aA.className = "draw-offer";
-        aA.id = "draw-offer-decline";
-        aA.setAttribute("type", "button");
+    draw_btn.setAttribute("aria-disabled", "true")
+    draw_btn.classList.add("disabled-link");
 
-        const aB = document.createElement("a");
-        aB.textContent = "✔";
-        aB.className = "draw-offer";
-        aB.id = "draw-offer-accept";
-        aB.setAttribute("type", "button");
-
-        draw_btn.appendChild(aA);
-        draw_btn.appendChild(aB);
-
-    }
-    //<a class="draw-offer" id="draw-offer-decline" type="button">❌</a>
-    // <a class="draw-offer" id="draw-offer-accept" type="button">✔</a>
+    const resign_btn = document.getElementById("resign-btn");
+    resign_btn.setAttribute("aria-disabled", "true")
+    resign_btn.classList.add("disabled-link");
 });
+/// DRAW/RESIGNATION HANDLER
 
+
+// Handle Resignation
 document.addEventListener("DOMContentLoaded", () => {
-    const draw_decine_btn = document.getElementById("draw-offer-decline");
+    const resignBtn = document.getElementById("resign-btn");
 
-    if (draw_decine_btn) {
-        draw_decine_btn.addEventListener("click", handleDrawDecline);
+    if (resignBtn) {
+        resignBtn.addEventListener("click", handleResign);
     }
 });
 
-function handleDrawDecline(){
-    const draw_offer_decline = document.getElementById("draw-offer-decline");
-    const draw_offer_accept = document.getElementById("draw-offer-accept");
-    if (draw_offer_decline && draw_offer_accept){
-        draw_offer_decline.remove();
-        draw_offer_accept.remove();
+// Handle Draw Button
+
+document.getElementById("draw").addEventListener("click", (e) => {
+    if (e.target.id === "draw-btn"){
+        offer_draw();
+    }
+    if (e.target.id === "draw-offer-decline") {
+        handleDrawDecline();
     }
 
-    socket.emit("respond_draw", {game_id: GAME_ID, accept: "decline"});
-}
-
-
-document.addEventListener("DOMContentLoaded", () => {
-    const draw_accept_btn = document.getElementById("draw-offer-accept");
-
-    if (draw_accept_btn) {
-        draw_accept_btn.addEventListener("click", handleDrawAccept);
+    if (e.target.id === "draw-offer-accept") {
+        handleDrawAccept();
     }
 });
 
-function handleDrawAccept(){
-    draw_btn_reply();
-    socket.emit("respond_draw", {game_id: GAME_ID, accept: "accept"});
-}
-function draw_btn_reply(){
-    const draw_offer_decline = document.getElementById("draw-offer-decline");
-    const draw_offer_accept = document.getElementById("draw-offer-accept");
-    if (draw_offer_decline && draw_offer_accept){
-        draw_offer_decline.remove();
-        draw_offer_accept.remove();
-    }
-}
 
-socket.on("draw_offered", (data) => {
-    // notify offerer that the request was sent
-    if (data && data.game_id === GAME_ID){
-        const draw_btn = document.getElementById("draw-btn");
-        const aA = document.createElement("a");
-        aA.textContent.remove();
-        aA.textContent = "Draw Offered.";
-        aA.className = "draw-offer";
-        aA.id = "draw-offer-display-btn";
-        aA.setAttribute("type", "button");
-        draw_btn.appendChild(aA);
-    }
-});
-
-socket.on("draw_declined", (data) => {
-    // notify the offerer that opponent declined
-    if (data && data.game_id === GAME_ID){
-        if (game_status !== "Ongoing")
-        {
-            return;
-        }
-        else {
-            const draw_btn = document.getElementById("draw-btn");
-            const aA = document.createElement("a");
-            aA.textContent = "Offer Declined.";
-            aA.className = "draw-offer";
-            aA.id = "draw-offer-display-btn";
-            aA.setAttribute("type", "button");
-            draw_btn.appendChild(aA);
-
-        }
-    }
-});
+// Handle draw-denial message.
 document.addEventListener("DOMContentLoaded", () => {
     const draw_offer_display_btn = document.getElementById("draw-offer-display-btn");
 
@@ -204,14 +132,114 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
+function offer_draw() {
+    if (game_status != "Ongoing"){
+        return;
+    }
+    const draw_btn = document.getElementById("draw-btn");
+    if (draw_btn.textContent !== "Offer Draw")
+    {
+        return;
+    }
+    draw_btn.textContent = "Draw Offered";
+    draw_btn.setAttribute("aria-disabled", "true")
+    draw_btn.classList.add("disabled-link");
+    socket.emit("try_draw", {game_id: GAME_ID});
+}
 
-document.addEventListener("DOMContentLoaded", () => {
-    const resignBtn = document.getElementById("resign-btn");
+// Incoming draw request from opponent: prompt user to accept/decline
+socket.on("draw_request", () => {
+    // data: {game_id, from, from_username}
+    if (game_status !== "Ongoing") return;
 
-    if (resignBtn) {
-        resignBtn.addEventListener("click", handleResign);
+    const draw_id = document.getElementById("draw");
+    const draw_btn = document.getElementById("draw-btn");
+
+    // Check if draw-receiving player already has these elements. If true, 
+    const draw_offer_decline = document.getElementById("draw-offer-decline");
+    // If not draw_offer buttons:
+    if (!draw_offer_decline)
+    {
+        draw_btn.textContent = "Draw?";
+        const aA = document.createElement("a");
+        aA.textContent = "❌";
+        aA.className = "draw-offer";
+        aA.id = "draw-offer-decline";
+        aA.setAttribute("type", "button");
+        aA.style = "padding: 0.02vw + 0.2rem";
+
+        const aB = document.createElement("a");
+        aB.textContent = "✔";
+        aB.className = "draw-offer";
+        aB.id = "draw-offer-accept";
+        aB.setAttribute("type", "button");
+
+        draw_id.appendChild(aA);
+        draw_id.appendChild(aB);
+
+    }
+    //<a class="draw-offer" id="draw-offer-decline" type="button">❌</a>
+    // <a class="draw-offer" id="draw-offer-accept" type="button">✔</a>
+});
+
+
+
+
+function handleDrawDecline(){
+    const draw_btn = document.getElementById("draw-btn");
+    // Check if draw-receiving player already has these elements. If true, 
+    const draw_offer_decline = document.getElementById("draw-offer-decline");
+    const draw_offer_accept = document.getElementById("draw-offer-accept");
+    // If not draw_offer buttons:
+    if (draw_offer_decline)
+    {
+        draw_btn.textContent = "Offer Draw";
+        draw_offer_decline.remove();
+        draw_offer_accept.remove();
+    }
+    socket.emit("respond_draw", {game_id: GAME_ID, decline: true});
+}
+
+socket.on("handleDrawIgnore",()=>{
+    clear_draw_status();
+});
+
+function clear_draw_status(){
+    const draw_btn = document.getElementById("draw-btn");
+    if (draw_btn === "Offer Draw"){
+        return;
+    }
+    draw_btn.textContent = "Offer Draw";
+    draw_btn.setAttribute("aria-disabled", "false");
+    draw_btn.classList.remove("disabled-link");
+
+    const draw_offer_decline = document.getElementById("draw-offer-decline");
+    const draw_offer_accept = document.getElementById("draw-offer-accept");
+    if (draw_offer_decline !== null && draw_offer_accept !== null){
+        draw_offer_decline.remove();
+        draw_offer_accept.remove();
+    }
+}
+
+function handleDrawAccept(){
+    clear_draw_status();
+    socket.emit("respond_draw", {game_id: GAME_ID, accept: true});
+}
+
+
+socket.on("draw_declined", (data) => {
+    // notify the offerer that opponent declined
+    if (data && data.game_id === GAME_ID){
+        if (game_status !== "Ongoing")
+        {
+            return;
+        }
+        const draw_btn = document.getElementById("draw-btn");
+        draw_btn.textContent = "Draw Declined.";
+        draw_btn.setAttribute("aria-disabled", "true");
     }
 });
+
 
 function handleResign() {
     if (game_status != "Ongoing"){
@@ -224,31 +252,6 @@ function handleResign() {
     return;
 }
 // socket listener on 'board_state', accept data as pos{square: piece, ...}, then call render_board(pos)
-
-
-// Handle Draw Button
-document.addEventListener("DOMContentLoaded", () => {
-    const draw_btn = document.getElementById("draw-btn");
-    if (draw_btn) {
-        draw_btn.addEventListener("click", ()=> handleDrawOffer());
-    }
-});
-
-
-function handleDrawOffer() {
-    const draw_btn = document.getElementById("draw-btn");
-    if (game_status != "Ongoing"){
-        return;
-    }
-    if (draw_btn.textContent === "Draw Offered" || draw_btn.textContent !== "Offer Draw"){
-        return;
-    }
-    draw_btn.textContent = "Draw offered";
-    draw_btn.ariaDisabled = true;
-    console.debug(String(draw_btn.textContent));
-
-    socket.emit("try_draw", {game_id: GAME_ID});
-}
 
 
 
@@ -337,8 +340,7 @@ function render_move(notationA = null, notationB = null) {
             pTags[2].textContent = notationB;
         }
     }
-
-    draw_btn_reply();
+    clear_draw_status();
 }
 
 function render_move_history(movesA = [], movesB = []) {
@@ -400,7 +402,6 @@ function alternate_current_player_colour(){
 }
 // on piece_onclick, perform a two-click-confirmation moves. Then, process the user's move.
 function piece_onclick(img){
-    console.debug("player_turn: ", player_turn, "player_slot: ", player_slot);
     if (player_turn !== player_slot){
         return;
     }
@@ -437,7 +438,6 @@ function piece_onclick(img){
         }
         else if (piece === "none"){
             // Piece moving to square.
-            console.debug("Attempting to move from", square_selected, "to", square);
             if (piece_selected === "unknown"){
             }
             else if (isAdjacent(square_selected, square)){
