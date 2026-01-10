@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <h1>Error</h1>
+            <div class="error-message">
+                <p>Something went wrong! Please contact admin.</p>
+                <p>More info:</p>
+                <p>{{error}}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

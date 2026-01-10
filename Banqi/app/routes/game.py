@@ -16,6 +16,7 @@ def game(game_id=None):
     # If not provided, socket.io will handle matchmaking in join_game
     return render_template('game.html', game_id=game_id or '')
 
+
 ### Source of Initialisation. Called when no pending games available.
 @play_bp.route("/create_game", methods=['GET'])
 def create_game():

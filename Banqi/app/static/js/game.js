@@ -35,6 +35,7 @@ socket.on("redirect_to_game", (data) => {
 
 socket.on("game_ready", (data) => {
     game_status = "Ongoing";
+    console.debug("game ready!");
     
     if (player_slot === "B"){
         username_a = data.username_b;
@@ -73,6 +74,12 @@ socket.on("joined_game", (data) => {
     current_player_colour = data.current_player_colour; // w or b, nullable.
     game_status = data.status; // Starting / Ongoing / Finished.
     is_player = data.is_player;
+
+    console.debug("Player Turn:"+ player_turn);
+    console.debug("Player_Slot:" + player_slot);
+    console.debug("current_player_colour" + current_player_colour);
+    console.debug("current_game status" + game_status);
+    console.debug("Isplayer?" + is_player);
 });
 
 socket.on("game_over", (data) => {
@@ -235,7 +242,7 @@ socket.on("draw_declined", (data) => {
             return;
         }
         const draw_btn = document.getElementById("draw-btn");
-        draw_btn.textContent = "Draw Declined.";
+        draw_btn.textContent = "Draw Declined";
         draw_btn.setAttribute("aria-disabled", "true");
     }
 });
