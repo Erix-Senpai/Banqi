@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
 import secrets
 from flask_socketio import SocketIO
@@ -52,6 +52,16 @@ def create_app():
     def load_user(user_id: str):
         from .routes.models import User
         return db.session.get(User, int(user_id))
+    
+    @app.errorhandler(404) 
+    # inbuilt function which takes error as parameter 
+    def not_found(e): 
+      return render_template("404.html", error=e)
+        
+    @app.errorhandler(500) 
+    # inbuilt function which takes error as parameter 
+    def internal_error(e): 
+      return render_template("500.html", error=e)
 
     socketio.init_app(app)
 

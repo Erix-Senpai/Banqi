@@ -7,6 +7,8 @@ from flask import request
 from flask_login import current_user
 import uuid
 import time
+from sqlalchemy.orm import selectinload
+from flask import current_app
 
 from app import db
 from .models import Game, Player, Move
@@ -40,6 +42,8 @@ def fetch_game(game_id: str):
 
 
 ### TODO: Currently, when logged-in-user refreshes the game, it fails to load the nameplates up, and potentially the data too. May have to do with SIDs.
+### TODO: Too many things are being performed in join_game. Needs to break this down.
+
 @socketio.on("join_game")
 def join_game(data: dict) -> None:
     """Handle player joining a game with matchmaking logic.
@@ -87,11 +91,15 @@ def join_game(data: dict) -> None:
         if loaded:
             GAME_STATES[game_id] = loaded
         else:
-            # Game not found anywhere
-            socketio.emit("error", {
-                "message": f"Game {game_id} not found"
+            socketio.emit("redirect_to_create", {
+                "url": "/play/create_game"
             }, room=sid)  # type: ignore
             return
+            # Game not found anywhere
+            #socketio.emit("error", {
+            #    "message": f"Game {game_id} not found"
+            #}, room=sid)  # type: ignore
+            #return
 
     # --- DETERMINE WHICH DICT THE GAME IS IN ---
     if game_id in PENDING_GAME_STATES:
@@ -163,6 +171,9 @@ def join_game(data: dict) -> None:
             "message": "Both players joined! Game starting."
         }, room=game_id)  # type: ignore
 
+
+
+
 @socketio.on("end_game")
 def end_game(data: dict) -> None:
     """Socket event to archive a finished game to the database.
@@ -175,6 +186,7 @@ def end_game(data: dict) -> None:
         if not game_id:
             return
         archive_game_to_db(game_id)
+        print("archieved game to db.")
     except Exception:
         # keep handler resilient; callers can check `game_archived` or logs
         return
@@ -746,6 +758,7 @@ def load_game_from_db(game_id: str):
     """
     try:
         g = db.session.get(Game, game_id)
+        
         if not g:
             return None
 
@@ -781,8 +794,8 @@ def load_game_from_db(game_id: str):
 
         return state
     except Exception:
+        current_app.logger.exception(f"Failed to load game {game_id}")
         return None
-
 
 def archive_game_to_db(game_id) -> None:
     """Persist an in-memory game from `GAME_STATES` into the SQLAlchemy DB.
