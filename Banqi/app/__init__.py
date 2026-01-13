@@ -5,7 +5,7 @@ from flask_socketio import SocketIO
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, current_user
 
-socketio = SocketIO(async_mode='threading', cors_allowed_origins="*", manage_session=True)
+socketio = SocketIO(cors_allowed_origins="*", manage_session=True, async_mode="threading")
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
