@@ -84,8 +84,7 @@ socket.on("joined_game", (data) => {
 });
 
 socket.on("game_over", (data) => {
-    const winner = data.winner;
-    alert(`Game Over! Winner: ${winner}`);
+    alert(`Game Over. ${data.winner} ${data.result} due to ${data.reason}`);
 
     game_status = "Finished";
     new_game_link = document.getElementById("new_game");
@@ -297,14 +296,50 @@ function render_board(pos){
 }
 
 function render_nameplate(username_a, username_b){
+    console.debug("Rendering nameplate...");
     const player_a = document.getElementById("player_a");
     const player_b = document.getElementById("player_b");
+    
+    const draw_btn = document.getElementById("draw-btn");
+    const resign_btn = document.getElementById("resign-btn");
+
+    search = document.getElementById("searching");
+    let searching = false;
+    if (game_status === "Starting"){
+        searching = true;
+        draw_btn.setAttribute("aria-disabled", "true")
+        draw_btn.classList.add("disabled-link");
+
+
+        resign_btn.setAttribute("aria-disabled", "true")
+        resign_btn.classList.add("disabled-link");
+    }
+    else{
+        draw_btn.setAttribute("aria-disabled", "false")
+        draw_btn.classList.remove("disabled-link");
+
+
+        resign_btn.setAttribute("aria-disabled", "false")
+        resign_btn.classList.remove("disabled-link");
+    }
 
     player_a.setAttribute("type", "button");
     player_a.innerHTML = `<a class="username-item username-link" href="/user/${username_a}">${username_a}</a>`;
 
     player_b.setAttribute("type", "button");
-    player_b.innerHTML = `<a class="username-item username-link" href="/user/${username_b}">${username_b}</a>`;
+    if (username_b !== null){
+        player_b.innerHTML = `<a class="username-item username-link" href="/user/${username_b}">${username_b}</a>`;
+    }
+
+    if (!searching){
+        try{
+            search.remove();
+        }
+        catch (error){
+            return;
+        }
+    }
+
 };
 
 let moveCount = 0;

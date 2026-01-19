@@ -74,6 +74,7 @@
     padding-bottom: 1px;
     margin-top: None;
     margin-bottom: None;
+    min-height: clamp(2rem, 2vh + 1rem, 3vh);
 }
 
 .username-item {
@@ -219,4 +220,25 @@
 .disabled-link{
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.searching{
+    font-size: clamp(0.5rem, 0.5vh + 2rem, 2vw);
+    font-family: "Rubik Mono One", Helvetica, sans-serif;
+    text-decoration: none;
+    color:black;
+    margin-bottom: 0;
+    padding-bottom: 0;
+}
+
+.dots::after {
+    content: "";
+    animation: dots 4s steps(3, end) infinite;
+}
+
+@keyframes dots {
+    0%   { content: ""; }
+    33%  { content: "."; }
+    66%  { content: ".."; }
+    100% { content: "..."; }
 }

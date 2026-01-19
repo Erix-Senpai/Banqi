@@ -65,7 +65,7 @@ def queue_game(game_id: str, user_id: str, sid: str, username: str) -> None:
         game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
 
 
-
+#TODO: Separate Spectators with a different URL/Handler to distinguish from players. Should replace game_status with an enumerator.
 @socketio.on("join_game")
 def join_game(data: dict) -> None:
     """Handle player joining a game with matchmaking logic.
@@ -77,8 +77,6 @@ def join_game(data: dict) -> None:
     """
     # --- MATCHMAKING: If no game_id, find or create pending game ---
     # remember what the client originally sent so we can redirect if needed
-    #TODO: On startup, user is sometimes matched against a Null player.
-    #TODO: Need to modify so that on disconnect, we no longer check on SID but on user_id.
     game_id = data.get("game_id")
     
     # Determine user_id and username
@@ -357,27 +355,20 @@ def handle_disconnect(data) -> None:
         if game_id in PENDING_GAME_STATES:
             del PENDING_GAME_STATES[game_id]
             return
+        if game_id in LOCKED_GAME_STATES:
+            del LOCKED_GAME_STATES[game_id]
+            return
+        
         game = GAME_STATES[game_id]
         if (game["status"] != "Ongoing"): return
         sid = request.sid # type: ignore
-        user_id = current_user.id if current_user.is_authenticated else None
-        if (not user_id):
-            if (game["players"]["A"]["sid"] == sid):
-                winner = game["players"]["B"]["username"]
-                checkmate_by_disconnection(game_id, winner)
-            elif (game["players"]["B"]["sid"] == sid):
-                winner = game["players"]["A"]["username"]
-                checkmate_by_disconnection(game_id, winner)
-            return
-        if (game["players"]["A"]["user_id"] == user_id):
-            winner = game["players"]["B"]["username"]
-        else:
-            winner = game["players"]["A"]["username"]
+        user_id = session["user_id"]
+        username = session["username"]
         
         PENDING_DISCONNECTED_USER[user_id] = {
             "deadline": time.time() + 15,  # 15 seconds from now
             "game_id": game_id,
-            "winner": winner
+            "Loser": username
         }
     except Exception:
         return
@@ -412,9 +403,9 @@ def disconnect_watcher(app):
             for user_id, data in list(PENDING_DISCONNECTED_USER.items()):
                 if now >= data["deadline"]:
                     game_id = data["game_id"]
-                    winner = data["winner"]
+                    loser = data["Loser"]
                     try:
-                        checkmate_by_disconnection(game_id, winner)
+                        checkmate_by_disconnection(game_id, loser)
                     except Exception as e:
                         print(f"[DISCONNECT-WATCHER-ERROR] checkmate_by_disconnection failed: {e}")
                     try:
@@ -479,7 +470,7 @@ def is_draw(game_id: str) -> bool:
             game["status"] = "Finished"
             # Use a neutral 'Draw' marker for winner field so client shows appropriately
             game["winner"] = "Draw"
-            socketio.emit("game_over", {"game_id": game_id, "winner": "Draw"}, room=game_id)  # type: ignore
+            socketio.emit("game_over", {"game_id": game_id, "winner": None, "result": "Draw", "reason": "Draw Agreement"}, room=game_id)  # type: ignore
             archive_game_to_db(game_id)
             return True
     return False
@@ -552,7 +543,7 @@ def try_resign(data: dict) -> None:
         game["winner"] = winner
         archive_game_to_db(game_id)
         # mark finished and archive
-        socketio.emit("game_over", {"game_id": game_id, "winner": winner}, room=game_id) # type: ignore
+        socketio.emit("game_over", {"game_id": game_id, "winner": winner, "result": "win", "reason": "Resignation"}, room=game_id) # type: ignore
     except Exception:
         return
     
@@ -693,7 +684,7 @@ def is_checkmate(game_id: str) -> bool:
             pass
 
         try:
-            socketio.emit("game_over", {"game_id": game_id, "winner": winner}, room=game_id) # type: ignore
+            socketio.emit("game_over", {"game_id": game_id, "winner": winner, "result": "win", "reason": "Checkmate"}, room=game_id) # type: ignore
         except Exception:
             pass
 
@@ -701,7 +692,7 @@ def is_checkmate(game_id: str) -> bool:
     except Exception:
         return False
 
-def checkmate_by_disconnection(game_id: str, winner_username: str) -> None:
+def checkmate_by_disconnection(game_id: str, loser_username: str) -> None:
     """Handle checkmate due to player disconnection."""
     try:
         game = GAME_STATES.get(game_id)
@@ -709,11 +700,15 @@ def checkmate_by_disconnection(game_id: str, winner_username: str) -> None:
             return
 
         game["status"] = "Finished"
+        if (game["players"]["A"]["username"] == loser_username):
+            winner_username = game["players"]["B"]["username"]
+        else:
+            winner_username = game["players"]["A"]["username"]
         game["winner"] = winner_username
         # Emit to connected clients first so the message is delivered
         # even if archiving later removes the in-memory state.
         try:
-            socketio.emit("game_over", {"game_id": game_id, "winner": winner_username}, room=game_id) # type: ignore
+            socketio.emit("game_over", {"game_id": game_id, "winner": winner_username, "reason": "Abandonment."}, room=game_id) # type: ignore
         except Exception as e:
             print(f"[DISCONNECT-EMIT-ERROR] Failed to emit game_over for {game_id}: {e}")
         # Archive the game; keep this resilient to DB errors.

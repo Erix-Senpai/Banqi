@@ -6,3 +6,5 @@ home_bp = Blueprint('home', __name__, url_prefix='/home')
 @home_bp.route('/', methods = ['POST', 'GET'])
 def home():
     return render_template('home.html')
+
+#TODO: Display active Games.
