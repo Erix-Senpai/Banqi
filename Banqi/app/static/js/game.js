@@ -36,18 +36,19 @@ socket.on("redirect_to_game", (data) => {
 socket.on("game_ready", (data) => {
     game_status = "Ongoing";
     console.debug("game ready!");
-    
+});
+socket.on("render_nameplate", (data) => {
     if (player_slot === "B"){
-        username_a = data.username_b;
+        username_a = data.username_b + "(You)";
         username_b = data.username_a;
+    }
+    else if (player_slot === "A"){
+        username_a = data.username_a + "(You)";
+        username_b = data.username_b;
     }
     else{
         username_a = data.username_a;
         username_b = data.username_b;
-    }
-    let text_filler = "";
-    if (is_player){
-        text_filler = "(You)"
     }
     render_nameplate(username_a, username_b);
 });
@@ -300,7 +301,7 @@ function render_nameplate(username_a, username_b){
     const player_b = document.getElementById("player_b");
 
     player_a.setAttribute("type", "button");
-    player_a.innerHTML = `<a class="username-item username-link" href="/user/${username_a}">${username_a} (You)</a>`;
+    player_a.innerHTML = `<a class="username-item username-link" href="/user/${username_a}">${username_a}</a>`;
 
     player_b.setAttribute("type", "button");
     player_b.innerHTML = `<a class="username-item username-link" href="/user/${username_b}">${username_b}</a>`;

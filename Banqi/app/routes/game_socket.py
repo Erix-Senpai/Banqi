@@ -8,13 +8,14 @@ from flask_login import current_user
 import uuid
 import time
 from sqlalchemy.orm import selectinload
-from flask import current_app
-
+from flask import current_app, session
+import random
 from app import db
 from .models import Game, Player, Move
 
 PENDING_DISCONNECTED_USER = {}
 PENDING_GAME_STATES = {}
+LOCKED_GAME_STATES = {}
 GAME_STATES = {}
 piece_notation_list = {
     'b_king': 'bK',
@@ -40,9 +41,30 @@ player_turn_toggle = {'A': 'B', 'B': 'A'}
 def fetch_game(game_id: str):
     return GAME_STATES.get(game_id)    
 
+global counter
+counter = 0
+def create_new_game() -> str:
+    global counter
+    counter += 1
+    rand_uuid = str(uuid.uuid4())[:12]
+    game_id = str(rand_uuid + str(counter))  # e.g. "a93b1c2d8ef012", where counter ensures uniqueness
+    LOCKED_GAME_STATES[game_id] = init_game_state()
+    return game_id
 
-### TODO: Currently, when logged-in-user refreshes the game, it fails to load the nameplates up, and potentially the data too. May have to do with SIDs.
-### TODO: Too many things are being performed in join_game. Needs to break this down.
+def queue_game(game_id: str, user_id: str, sid: str, username: str) -> None:
+    ### Queued game must always be locked.
+    game = LOCKED_GAME_STATES[game_id]
+    try:
+        game.setdefault("connections", set()).add(sid)
+    except Exception:
+        game["connections"] = set([sid])
+    # --- ASSIGN PLAYER SLOT ---
+    if game["players"]["A"].get("user_id") is None:
+        game["players"]["A"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
+    elif game["players"]["B"].get("user_id") is None:
+        game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
+
+
 
 @socketio.on("join_game")
 def join_game(data: dict) -> None:
@@ -55,60 +77,99 @@ def join_game(data: dict) -> None:
     """
     # --- MATCHMAKING: If no game_id, find or create pending game ---
     # remember what the client originally sent so we can redirect if needed
+    #TODO: On startup, user is sometimes matched against a Null player.
+    #TODO: Need to modify so that on disconnect, we no longer check on SID but on user_id.
     game_id = data.get("game_id")
-    user_id = current_user.id if current_user.is_authenticated else (f"ANON_{str(uuid.uuid4())[:12]}")
-    username = current_user.username if current_user.is_authenticated else (f"ANON_{user_id[:8]}")
+    
+    # Determine user_id and username
+    try:
+        user_id = session["user_id"]
+        username = session["username"]
+    except Exception:
+        if current_user.is_authenticated:
+            session["user_id"] = current_user.id
+            session["username"] = current_user.username
+            session["is_guest"] = False
+        else:
+            if "user_id" not in session:
+                session["user_id"] = str(uuid.uuid4())[:8]
+
+                session["username"] = f"ANON_{str(uuid.uuid4())[:4]}{random.randint(1000,9999)}"
+                session["is_guest"] = True
+        user_id = session["user_id"]
+        username = session["username"]
     sid = request.sid  # type: ignore
     # --- MATCHMAKING: If no game_id, find or create pending game ---
     if not game_id:
-        if PENDING_GAME_STATES:
+        if not PENDING_GAME_STATES:
+            # No pending games; redirect client to create_game
+            game_id = create_new_game() # On create game, we immediately create a locked game.
+        else:
             # Reserve a pending game id without creating a long-lived iterator.
             # Use popitem() (O(1)) to get a key/value pair and reinsert it
             # immediately to preserve the pending state.
-            popped_game_id, popped_game = PENDING_GAME_STATES.popitem()
-            game_id = popped_game_id
-            PENDING_GAME_STATES[game_id] = popped_game
+            try:
+                game_id, popped_game = PENDING_GAME_STATES.popitem()
+                LOCKED_GAME_STATES[game_id] = popped_game
+            except KeyError:
+                game_id = create_new_game()
             # since the client arrived without a URL, instruct them to navigate
             # to the canonical game URL so their browser shows the game id.
-            socketio.emit("redirect_to_game", {
-                "url": f"/play/game/{game_id}"
-            }, room=sid)  # type: ignore
-            # let the client navigate and reconnect to join properly
-            return
+
+        queue_game(game_id, user_id, sid, username)
+        socketio.emit("redirect_to_game", {
+            "url": f"/play/game/{game_id}"
+        }, room=sid)  # type: ignore
+        
+        game = LOCKED_GAME_STATES[game_id]
+        if game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
+            GAME_STATES[game_id] = game
         else:
-            # No pending games; redirect client to create_game
-            socketio.emit("redirect_to_create", {
-                "url": "/play/create_game"
-            }, room=sid)  # type: ignore
-            return
-
-
-
+            PENDING_GAME_STATES[game_id] = game
+        return
+        # let the client navigate and reconnect to join properly
+        
     # --- LOAD GAME STATE ---
-    if game_id not in GAME_STATES and game_id not in PENDING_GAME_STATES:
+    if game_id not in GAME_STATES and game_id not in PENDING_GAME_STATES and game_id not in LOCKED_GAME_STATES:
         # Try to load archived game from DB
         loaded = load_game_from_db(game_id)
         if loaded:
             GAME_STATES[game_id] = loaded
         else:
-            socketio.emit("redirect_to_create", {
-                "url": "/play/create_game"
+            game_id = create_new_game()
+            queue_game(game_id, user_id, sid, username)
+            socketio.emit("redirect_to_game", {
+                "url": f"/play/game/{game_id}"
             }, room=sid)  # type: ignore
+            game = LOCKED_GAME_STATES[game_id]
+            if game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
+                GAME_STATES[game_id] = game
+            else:
+                PENDING_GAME_STATES[game_id] = game
             return
             # Game not found anywhere
-            #socketio.emit("error", {
-            #    "message": f"Game {game_id} not found"
-            #}, room=sid)  # type: ignore
-            #return
-
     # --- DETERMINE WHICH DICT THE GAME IS IN ---
-    if game_id in PENDING_GAME_STATES:
-        game = PENDING_GAME_STATES[game_id]
-        is_pending = True
-    else:
-        game = GAME_STATES[game_id]
-        is_pending = False
-
+    game = None
+    is_pending = False
+    for _ in range(3):
+        if game_id in PENDING_GAME_STATES:
+            game = PENDING_GAME_STATES[game_id]
+            is_pending = True
+            break
+        elif game_id in LOCKED_GAME_STATES:
+            game = LOCKED_GAME_STATES[game_id]
+            is_pending = True
+            break
+        elif game_id in GAME_STATES:
+            game = GAME_STATES[game_id]
+            break
+        else:
+            game = None
+            socketio.sleep(0.5) #type: ignore
+    
+    if (not game):
+        socketio.emit("error", {"message": "Game not found."}, room=sid)  # type: ignore
+        return
     # Join the room
     join_room(game_id)
     try:
@@ -117,21 +178,17 @@ def join_game(data: dict) -> None:
         game["connections"] = set([sid])
 
     # --- ASSIGN PLAYER SLOT ---
+    is_player = False
     try:
-        if game["players"]["A"].get("user_id") is None:
+        if (game["players"]["A"]["user_id"] == user_id):
             game["players"]["A"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
             player_slot = "A"
-        elif game["players"]["B"].get("user_id") is None:
-            game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
-            player_slot = "B"
-        elif (game["players"]["A"]["user_id"] == user_id):
-            game["players"]["A"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
-            player_slot = "A"
+            is_player = True
         elif (game["players"]["B"]["user_id"] == user_id):
             game["players"]["B"] = {"user_id": user_id, "sid": sid, "username": username, "colour": None}
             player_slot = "B"
+            is_player = True
         else:
-            # Both slots filled; this is a spectator
             player_slot = None
     except Exception:
         leave_room(game_id)
@@ -141,9 +198,6 @@ def join_game(data: dict) -> None:
     
 
     player_turn = game.get("player_turn")
-    is_player = False
-    if username == game["players"]["A"]["username"] or username == game["players"]["B"]["username"]:
-        is_player = True
     # Send current state to joining client only
     socketio.emit("joined_game", {
         "game_id": game_id,
@@ -157,19 +211,17 @@ def join_game(data: dict) -> None:
         "current_player_colour": game["players"][player_turn]["colour"]
     }, to=request.sid)  # type: ignore
 
-    if is_pending and game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
+    if is_pending and game["status"] == "Starting" and game["players"]["A"].get("user_id") and game["players"]["B"].get("user_id"):
         # Both players have joined; move to GAME_STATES and activate
-        del PENDING_GAME_STATES[game_id]
         game["status"] = "Ongoing"
         GAME_STATES[game_id] = game
-        username_a = game["players"]["A"]["username"]
-        username_b = game["players"]["B"]["username"]
         socketio.emit("game_ready", {
             "game_id": game_id,
-            "username_a":username_a,
-            "username_b": username_b,
             "message": "Both players joined! Game starting."
         }, room=game_id)  # type: ignore
+    username_a = game["players"]["A"]["username"]
+    username_b = game["players"]["B"]["username"]
+    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b}, room=game_id)  # type: ignore
 
 
 

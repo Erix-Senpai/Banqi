@@ -4,6 +4,9 @@ import secrets
 from flask_socketio import SocketIO
 from flask_bcrypt import Bcrypt
 from flask_login import LoginManager, current_user
+from flask import session
+import uuid
+import random
 
 socketio = SocketIO(cors_allowed_origins="*", manage_session=True, async_mode="threading")
 db = SQLAlchemy()
@@ -62,6 +65,19 @@ def create_app():
     # inbuilt function which takes error as parameter 
     def internal_error(e): 
       return render_template("500.html", error=e)
+    
+    @app.before_request
+    def session_identity():
+        if current_user.is_authenticated:
+            session["user_id"] = current_user.id
+            session["username"] = current_user.username
+            session["is_guest"] = False
+        else:
+            if "user_id" not in session:
+                session["user_id"] = str(uuid.uuid4())[:8]
+
+                session["username"] = f"ANON_{str(uuid.uuid4())[:4]}{random.randint(1000,9999)}"
+                session["is_guest"] = True
 
     socketio.init_app(app)
 
