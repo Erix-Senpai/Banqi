@@ -20,15 +20,15 @@ def game(game_id=None):
 ### Source of Initialisation. Called when no pending games available.
 @play_bp.route("/create_game", methods=['GET'])
 def create_game():
-    """Generate a new game_id and add to PENDING_GAME_STATES.
+    """Generate a new game_id and add to pending_game_states.
     
     The client will then navigate to game.html which will emit join_game
     without a game_id, triggering matchmaking logic.
     """
-    from .game_socket import PENDING_GAME_STATES, init_game_state
+    from .game_socket import pending_game_states, init_game_state
     
     game_id = str(uuid.uuid4())[:12]  # e.g. "a93b1c2d8ef0"
-    PENDING_GAME_STATES[game_id] = init_game_state()
+    pending_game_states[game_id] = init_game_state()
     
     # Redirect to game.html with the new game_id
     return redirect(url_for('play.game', game_id=game_id))
@@ -49,7 +49,7 @@ def get_piece(piece_dict: dict) -> str:
         return "none"
     return str(revealed_piece)
 
-def init_piece_pool()-> dict:
+def INIT_PIECE_POOL()-> dict:
     piece_dict = dict(w_king=1, b_king=1,
      w_advisor=2, b_advisor=2,
      w_elephant=2, b_elephant=2,
@@ -60,7 +60,7 @@ def init_piece_pool()-> dict:
     return piece_dict
 
 ###
-def init_pos() -> dict:
+def INIT_POS() -> dict:
     return {
         f"{str(file)}{int(rank)}": "unknown"
         for file in "abcdefgh"

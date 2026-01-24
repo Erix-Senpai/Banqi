@@ -10,7 +10,7 @@ let img_selected = null;
 let player_turn = 'A';
 let player_slot = null;
 let current_player_colour = null;
-let game_status = "Starting";
+let game_status = "STARTING";
 let is_player = false;
 //calls upon initialisation.
 socket.on("connect", () => {
@@ -33,8 +33,8 @@ socket.on("redirect_to_game", (data) => {
     }
 });
 
-socket.on("game_ready", (data) => {
-    game_status = "Ongoing";
+socket.on("game_ready", () => {
+    game_status = "ONGOING";
     console.debug("game ready!");
 });
 socket.on("render_nameplate", (data) => {
@@ -73,7 +73,7 @@ socket.on("joined_game", (data) => {
     player_turn = data.player_turn; // A or B.
     player_slot = data.player_slot; // A or B, or None / Spectator.
     current_player_colour = data.current_player_colour; // w or b, nullable.
-    game_status = data.status; // Starting / Ongoing / Finished.
+    game_status = data.status; // STARTING / ONGOING / FINISHED.
     is_player = data.is_player;
 
     console.debug("Player Turn:"+ player_turn);
@@ -84,9 +84,12 @@ socket.on("joined_game", (data) => {
 });
 
 socket.on("game_over", (data) => {
+    if (data.winner === null) {
+        data.winner = ""
+    }
     alert(`Game Over. ${data.winner} ${data.result} due to ${data.reason}`);
 
-    game_status = "Finished";
+    game_status = "FINISHED";
     new_game_link = document.getElementById("new_game");
     new_game_link.setAttribute("type","button");
     new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
@@ -140,7 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function offer_draw() {
-    if (game_status != "Ongoing"){
+    if (game_status != "ONGOING"){
         return;
     }
     const draw_btn = document.getElementById("draw-btn");
@@ -157,7 +160,7 @@ function offer_draw() {
 // Incoming draw request from opponent: prompt user to accept/decline
 socket.on("draw_request", () => {
     // data: {game_id, from, from_username}
-    if (game_status !== "Ongoing") return;
+    if (game_status !== "ONGOING") return;
 
     const draw_id = document.getElementById("draw");
     const draw_btn = document.getElementById("draw-btn");
@@ -237,7 +240,7 @@ function handleDrawAccept(){
 socket.on("draw_declined", (data) => {
     // notify the offerer that opponent declined
     if (data && data.game_id === GAME_ID){
-        if (game_status !== "Ongoing")
+        if (game_status !== "ONGOING")
         {
             return;
         }
@@ -249,7 +252,7 @@ socket.on("draw_declined", (data) => {
 
 
 function handleResign() {
-    if (game_status != "Ongoing"){
+    if (game_status != "ONGOING"){
         return;
     }
     if (!confirm("Are you sure you want to resign?")){
@@ -279,11 +282,11 @@ function render_board(pos){
 
         // addEventListener to img, on click, decide if board needs to be updated.
         img.addEventListener("click", () => {
-            if (game_status === "Finished") return;
+            if (game_status === "FINISHED") return;
             piece_onclick(img);
         });
         img.addEventListener("contextmenu",(event) => {
-            if (game_status === "Finished") return;
+            if (game_status === "FINISHED") return;
             event.preventDefault();
             piece_onrightclick();
         });
@@ -305,7 +308,7 @@ function render_nameplate(username_a, username_b){
 
     search = document.getElementById("searching");
     let searching = false;
-    if (game_status === "Starting"){
+    if (game_status === "STARTING"){
         searching = true;
         draw_btn.setAttribute("aria-disabled", "true")
         draw_btn.classList.add("disabled-link");
@@ -448,7 +451,7 @@ function piece_onclick(img){
     if (player_turn !== player_slot){
         return;
     }
-    if (game_status !== "Ongoing"){
+    if (game_status !== "ONGOING"){
         return;
     }
     const piece = img.dataset.piece;
