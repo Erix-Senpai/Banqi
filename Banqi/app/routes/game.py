@@ -33,6 +33,13 @@ def create_game():
     # Redirect to game.html with the new game_id
     return redirect(url_for('play.game', game_id=game_id))
 
+@play_bp.route("/create_private_game", methods=['GET'])
+def create_private_game():
+    from .game_socket import init_game_state, private_game_states
+    game_id = str(uuid.uuid4())[:12]  # e.g. "a93b1c2d8ef0"
+    private_game_states[game_id] = init_game_state()
+    return redirect(url_for('play.game', game_id=game_id))
+
 
 def get_piece(piece_dict: dict) -> str:
     revealed_piece = None
