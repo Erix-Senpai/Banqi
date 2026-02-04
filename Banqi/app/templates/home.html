@@ -23,14 +23,14 @@
                 
 
                 <div class="cta-unit">
-                    <a href="{{ url_for('play.spectate') }}" class="btn btn-dark btn-lg row">
+                    <a href="{{ url_for('spectate.spectate') }}" class="btn btn-warning btn-lg row">
                         <p style="text-align:center;">Spectate</p>
                         <p class="cta-description" style="text-align: center;">watch live matches</p>
                     </a>
                 </div>
 
                 <div class="cta-unit">
-                    <a href="{{ url_for('home.home') }}" class="btn btn-warning btn-lg row">
+                    <a href="{{ url_for('home.home') }}"  class="btn btn-dark btn-lg row">
                         <p style="text-align: center;">My Stats</p>
                         <p class="cta-description" style="text-align: center;">view your stat</p>
                     </a>
@@ -46,7 +46,7 @@
                 <div class="card-header">
                     <strong>Previous Games</strong>
                 </div>
-                <div class="card-body">
+                <div class="card-body Previous-Games">
                     {% if previous_games is defined and previous_games|length > 0 %}
                         <div class="table-responsive">
                             <table class="table table-hover align-middle mb-0">
@@ -54,7 +54,7 @@
                                     <tr>
                                         <th>Opponent</th>
                                         <th>Result</th>
-                                        <th>Ended</th>
+                                        <th>Date</th>
                                         <th class="text-end">Actions</th>
                                     </tr>
                                 </thead>
@@ -63,11 +63,10 @@
                                     <tr>
                                         <td>{{ g.opponent_username or g.opponent or '—' }}</td>
                                         <td>{{ g.result or 'Unknown' }}</td>
-                                        <td>{{ g.ended_at or g.updated_at or '—' }}</td>
+                                        <td>{{ g.date or '—' }}</td>
                                         <td class="text-end">
                                             {% if g.game_id %}
                                                 <a href="{{ url_for('play.game', game_id=g.game_id) }}" class="btn btn-sm btn-primary">View</a>
-                                                <a href="{{ url_for('play.game', game_id=g.game_id) }}" class="btn btn-sm btn-outline-secondary">Spectate</a>
                                             {% else %}
                                                 <span class="text-muted">—</span>
                                             {% endif %}

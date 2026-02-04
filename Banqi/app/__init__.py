@@ -35,6 +35,10 @@ def create_app():
     from .routes.game import play_bp
     app.register_blueprint(play_bp)
 
+    # spectate blueprint
+    from .routes.spectate import spectate_bp
+    app.register_blueprint(spectate_bp)
+
     # auth blueprint
     from .routes.auth import auth_bp
     app.register_blueprint(auth_bp)

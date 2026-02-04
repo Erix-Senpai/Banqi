@@ -6,35 +6,22 @@
         <div class="col-12 col-md-12" style="align-items: center;">
             <h1 class="display-5">Watch Live Games:</h1>
             <div class="hero-cta btn-grid">
-                <div class="cta-unit">
-                    <a class="btn btn-warning btn-lg row">
-                        <p style="text-align:center;">Game 1</p>
-                        <p class="cta-description" style="text-align: center;">ABC vs DEF</p>
-                    </a>
-                </div>
-
-                <div class="cta-unit">
-                    <a class="btn btn-dark btn-lg row">
-                        <p style="text-align:center;">Game 2</p>
-                        <p class="cta-description" style="text-align: center;">EFG vs HIH</p>
-                    </a>
-                </div>
-                
-
-                <div class="cta-unit">
-                    <a class="btn btn-dark btn-lg row">
-                        <p style="text-align:center;">Game 3</p>
-                        <p class="cta-description" style="text-align: center;">XYZ vs TAMPLITE</p>
-                    </a>
-                </div>
-
-                <div class="cta-unit">
-                    <a class="btn btn-warning btn-lg row">
-                        <p style="text-align: center;">Game 4</p>
-                        <p class="cta-description" style="text-align: center;">BAHAHAHAH vs erixero</p>
-                    </a>
-                </div>
-
+                {% if active_games is defined and active_games|length > 0 %}
+                    {% for g in active_games %}
+                    <div class="cta-unit">
+                        <a href="{{ url_for('play.game', game_id=g.game_id) }}" class="btn btn-outline-primary btn-lg row">
+                            <p style="text-align:center;">{{ g.game_id }}</p>
+                            <p class="cta-description" style="text-align: center;">{{ g.players }}</p>
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="alert alert-secondary" role="alert">
+                            There are no active games right now. Check back later or start a <a href="{{ url_for('play.create_game') }}">new game</a>.
+                        </div>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>

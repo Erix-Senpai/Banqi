@@ -5,7 +5,6 @@ from .game_helper import INIT_POS, INIT_PIECE_POOL, get_piece
 from flask import request
 from flask_login import current_user
 import uuid
-import time
 from sqlalchemy.orm import selectinload
 from flask import current_app, session
 import random
@@ -13,8 +12,12 @@ from app import db
 from .models import Game, Player, Move
 import threading
 import time
+from datetime import date
 from collections import deque
-
+class Game_result(Enum):
+    WIN = "win"
+    LOSS = "loss"
+    DRAW = "draw"
 class Game_State:
     def __init__(self, game_id, is_private=False):
         self.id = game_id
@@ -24,7 +27,7 @@ class Game_State:
         self.is_private = is_private
 
         self.created_at = time.time()
-        self.started_at = None
+        self.started_at = time.time()
 
         # runtime-only (NOT in state dict)
         self.sockets = {}      # user_id -> sid
@@ -94,6 +97,8 @@ def queue_game(game_id, user_id, username):
                 
     except Exception:
         pass
+
+#TODO: When a user opens a game through database, the game is not processed correctly.
 @socketio.on("join_game")
 def join_game(data: dict) -> None:
     try:
@@ -136,8 +141,13 @@ def join_game(data: dict) -> None:
             ### if game_id is provided, but not found, try search through db.
             loaded = load_game_from_db(game_id)
             if loaded:
-                active_games[game_id].state = loaded
-                
+                try:
+                    active_games[game_id].state = loaded
+                    game = active_games.get(game_id)
+                    view_game_history(game_id)
+                except Exception:
+                    return
+                return
             else:
                 game_id, game = create_game(is_private)
                 with game.lock:
@@ -189,6 +199,28 @@ def join_game(data: dict) -> None:
     username_b = game.state["players"]["B"]["username"]
     socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b}, room=game_id)  # type: ignore
     
+
+def view_game_history(game_id: str) -> None:
+    game = active_games.get(game_id)
+    if not game:
+        return
+    player_slot = None
+    current_player_turn = game.state.get("player_turn")
+    is_player = False
+    socketio.emit("joined_game", {
+        "game_id": game_id,
+        "board": game.state.get("board"),
+        "moves": game.state.get("moves"),
+        "status": game.state.get("status"),
+        "players": game.state.get("players"),
+        "player_slot": player_slot,
+        "player_turn": current_player_turn,
+        "is_player": is_player,
+        "current_player_colour": game.state["players"][current_player_turn]["colour"]
+    }, to=request.sid)  # type: ignore
+    username_a = game.state["players"]["A"]["username"]
+    username_b = game.state["players"]["B"]["username"]
+    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b}, room=sid)  # type: ignore
 
 ### Socket Events for Player Actions ###
 @socketio.on("try_reveal_piece")
@@ -367,9 +399,12 @@ def handle_disconnect(data) -> None:
                 pass
         # clear player slots that reference this sid
         for slot in ("A", "B"):
-            p = gs.get("players", {}).get(slot)
-            if p and p.get("sid") == sid:
-                p["sid"] = None
+            try:
+                p = gs.get("players", {}).get(slot)
+                if p and p.get("sid") == sid:
+                    p["sid"] = None
+            except Exception:
+                return
 
         # if no more connected clients and game is finished, free memory
         if (not conns) and gs.get("status") == GAME_STATE.FINISHED.name:
@@ -474,7 +509,7 @@ def is_draw(game_id: str) -> bool:
             # End the game as a draw
             game.state["status"] = GAME_STATE.FINISHED.name
             # Use a neutral 'Draw' marker for winner field so client shows appropriately
-            game.state["winner"] = "Draw"
+            game.state["winner"] = None
             socketio.emit("game_over", {"game_id": game_id, "winner": None, "result": "Draw", "reason": "Draw Agreement"}, room=game_id)  # type: ignore
             archive_game_to_db(game_id)
             return True
@@ -929,15 +964,7 @@ def load_game_from_db(game_id: str):
     except Exception:
         current_app.logger.exception(f"Failed to load game {game_id}")
         return None
-
 def archive_game_to_db(game_id) -> None:
-    """Persist an in-memory game from `game_states` into the SQLAlchemy DB.
-
-    Uses `app.db` and models from `app.routes.models`. This function is resilient
-    to missing games and DB errors; it will remove the in-memory game after
-    successful commit.
-    """
-
     game = active_games.get(game_id)
     if not game:
         return
@@ -945,18 +972,19 @@ def archive_game_to_db(game_id) -> None:
     game_state = game.state
 
     try:
-        # Create model instances and set attributes explicitly to avoid
-        # unexpected-keyword errors from some type-checkers/environments.
-        game = Game()
-        game.id = game_id
-        game.board = game_state["board"]
-        game.piece_pool = game_state["piece_pool"]
-        game.player_turn = game_state.get("player_turn", "A")
-        game.move_count = game_state.get("move_count", 0)
-        game.status = game_state.get("status", GAME_STATE.FINISHED.name)
-        db.session.add(game)
+        game_model = Game()
+        game_model.id = game_id
+        game_model.board = game_state["board"]
+        game_model.piece_pool = game_state["piece_pool"]
+        game_model.player_turn = game_state.get("player_turn", "A")
+        game_model.move_count = game_state.get("move_count", 0)
+        game_model.status = GAME_STATE.FINISHED.name
+        game_model.date = date.today()
 
-        # Persist players if they registered a user_id
+        db.session.add(game_model)
+
+        winner_slot = game_state.get("winner")  # "A", "B", or None
+
         for slot in ["A", "B"]:
             p = game_state["players"][slot]
             if p.get("user_id") is None:
@@ -968,10 +996,18 @@ def archive_game_to_db(game_id) -> None:
             gp.user_id = p.get("user_id")
             gp.username = p.get("username")
             gp.colour = p.get("colour")
+
+            # ✅ assign per-player result
+            if winner_slot is None:
+                gp.result = Game_result.DRAW.name
+            elif slot == winner_slot:
+                gp.result = Game_result.WIN.name
+            else:
+                gp.result = Game_result.LOSS.name
+
             db.session.add(gp)
 
-        # Save move history. Use a sequential move_number across both players
-        # (original behaviour). If you prefer pairwise numbering, change here.
+        # moves unchanged
         move_number = 1
         for slot in ["A", "B"]:
             for notation in game_state["moves"][slot]:
@@ -985,10 +1021,9 @@ def archive_game_to_db(game_id) -> None:
 
         db.session.commit()
 
-        # Remove from memory only after successful commit
-        del game_state[game_id]
         del active_games[game_id]
+
     except Exception as e:
         db.session.rollback()
         print(f"[ARCHIVE-ERROR] Failed to archive game {game_id}: {e}")
-        return
+
