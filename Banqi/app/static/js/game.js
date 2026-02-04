@@ -16,7 +16,8 @@ let is_player = false;
 socket.on("connect", () => {
     // GAME_ID can be empty string if user clicked "Play" without a URL game_id
     // The join_game handler will manage matchmaking
-    socket.emit("join_game", {game_id: GAME_ID || null});
+    // Convert IS_PRIVATE string to boolean if needed (for safety with string type coercion)
+    socket.emit("join_game", {game_id: GAME_ID || null, is_private: IS_PRIVATE});
 });
 
 
@@ -33,9 +34,43 @@ socket.on("redirect_to_game", (data) => {
     }
 });
 
+function copyShareUrl() {
+        const urlInput = document.getElementById('share-url');
+        const btn = document.getElementById('copy-btn');
+        if (!urlInput) return;
+        const text = urlInput.value || window.location.href;
+        navigator.clipboard.writeText(text).then(() => {
+            if (btn) {
+                const prev = btn.innerText;
+                btn.innerText = 'Copied!';
+                setTimeout(() => btn.innerText = prev, 1600);
+            }
+        }).catch(() => {
+            if (btn) {
+                btn.innerText = 'Copy failed';
+                setTimeout(() => btn.innerText = 'Copy', 1600);
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const shareInput = document.getElementById('share-url');
+        if (shareInput) {
+            shareInput.value = window.location.href;
+            shareInput.addEventListener('click', copyShareUrl);
+        }
+
+        if (IS_PRIVATE) {
+            const modalEl = document.getElementById('privateShareModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
+            }
+        }
+    });
+
 socket.on("game_ready", () => {
     game_status = "ONGOING";
-    console.debug("game ready!");
 });
 socket.on("render_nameplate", (data) => {
     if (player_slot === "B"){
@@ -75,12 +110,6 @@ socket.on("joined_game", (data) => {
     current_player_colour = data.current_player_colour; // w or b, nullable.
     game_status = data.status; // STARTING / ONGOING / FINISHED.
     is_player = data.is_player;
-
-    console.debug("Player Turn:"+ player_turn);
-    console.debug("Player_Slot:" + player_slot);
-    console.debug("current_player_colour" + current_player_colour);
-    console.debug("current_game status" + game_status);
-    console.debug("Isplayer?" + is_player);
 });
 
 socket.on("game_over", (data) => {
@@ -299,7 +328,6 @@ function render_board(pos){
 }
 
 function render_nameplate(username_a, username_b){
-    console.debug("Rendering nameplate...");
     const player_a = document.getElementById("player_a");
     const player_b = document.getElementById("player_b");
     
@@ -511,12 +539,6 @@ function piece_onclick(img){
     }
 }
 
-function fetch_game(game_id){
-    socket.emit("fetch_game", {game_id}, (game) => {
-        const board = game.board;
-        return board;
-    });
-}
 
 
 // calculate_p to map the board by correctly positioning them to the UI by intaking square{file:str,rank:int}, and returns pos.

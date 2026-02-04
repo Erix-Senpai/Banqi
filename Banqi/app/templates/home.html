@@ -8,7 +8,7 @@
             <p class="lead text-muted">Play Banqi — a strategic chess-like experience. Invite a friend or spectate ongoing matches.</p>
             <div class="hero-cta btn-grid">
                 <div class="cta-unit">
-                    <a href="{{ url_for('play.create_game') }}" class="btn btn-warning btn-lg row">
+                    <a href="{{ url_for('play.game', game_id='') }}" class="btn btn-warning btn-lg row">
                         <p style="text-align:center;">Quick Match</p>
                         <p class="cta-description" style="text-align: center;">start a new game</p>
                     </a>
@@ -23,7 +23,7 @@
                 
 
                 <div class="cta-unit">
-                    <a href="{{ url_for('play.game', game_id='') }}" class="btn btn-dark btn-lg row">
+                    <a href="{{ url_for('play.spectate') }}" class="btn btn-dark btn-lg row">
                         <p style="text-align:center;">Spectate</p>
                         <p class="cta-description" style="text-align: center;">watch live matches</p>
                     </a>
