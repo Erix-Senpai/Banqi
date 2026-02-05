@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <h1 class="mb-4">{{ user.username }}'s Profile</h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Player Stats Cards -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Player Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <h6 class="text-muted">Games Played</h6>
+                            <h3 class="text-primary">{{ stats.total_games }}</h3>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted">Total Wins</h6>
+                            <h3 class="text-success">{{ stats.wins }}</h3>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-6">
+                            <h6 class="text-muted">Win Rate</h6>
+                            <h3 class="text-info">{{ stats.win_rate }}%</h3>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted">Losses</h6>
+                            <h3>{{ stats.total_games - stats.wins }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ELO and Ranking -->
+        <div class="col-md-6 mb-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Ranking</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <h6 class="text-muted">ELO Rating</h6>
+                            <h2 class="text-success">{{ stats.elo }}</h2>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-12">
+                            <h6 class="text-muted">Leaderboard Rank</h6>
+                            <div class="d-flex align-items-center">
+                                <h2 class="text-warning mb-0 me-2">#{{ stats.leaderboard_rank }}</h2>
+                                {% if stats.leaderboard_rank == 1 %}
+                                    <span class="badge bg-warning text-dark">🏆 Champion</span>
+                                {% elif stats.leaderboard_rank <= 3 %}
+                                    <span class="badge bg-secondary">🥈 Top 3</span>
+                                {% elif stats.leaderboard_rank <= 10 %}
+                                    <span class="badge bg-info">🥉 Top 10</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bar for Win Rate -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Win Rate Progress</h5>
+                </div>
+                <div class="card-body">
+                    <div class="progress" style="height: 25px;">
+                        <div class="progress-bar bg-success"
+                            style="--win-rate: {{ stats['win_rate'] }}%;"
+                            role="progressbar"
+                            aria-valuenow="{{ stats['win_rate'] }}"
+                            aria-valuemin="0"
+                            aria-valuemax="100">
+                            {{ stats['win_rate'] }}%
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <a href="{{ url_for('home.home') }}" class="btn btn-primary">Back to Home</a>
+            <a href="{{ url_for('play.create_game') }}" class="btn btn-success">Play New Game</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

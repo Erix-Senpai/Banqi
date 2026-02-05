@@ -16,7 +16,8 @@ let is_player = false;
 socket.on("connect", () => {
     // GAME_ID can be empty string if user clicked "Play" without a URL game_id
     // The join_game handler will manage matchmaking
-    socket.emit("join_game", {game_id: GAME_ID || null});
+    // Convert IS_PRIVATE string to boolean if needed (for safety with string type coercion)
+    socket.emit("join_game", {game_id: GAME_ID || null, is_private: IS_PRIVATE});
 });
 
 
@@ -33,13 +34,47 @@ socket.on("redirect_to_game", (data) => {
     }
 });
 
+function copyShareUrl() {
+        const urlInput = document.getElementById('share-url');
+        const btn = document.getElementById('copy-btn');
+        if (!urlInput) return;
+        const text = urlInput.value || window.location.href;
+        navigator.clipboard.writeText(text).then(() => {
+            if (btn) {
+                const prev = btn.innerText;
+                btn.innerText = 'Copied!';
+                setTimeout(() => btn.innerText = prev, 1600);
+            }
+        }).catch(() => {
+            if (btn) {
+                btn.innerText = 'Copy failed';
+                setTimeout(() => btn.innerText = 'Copy', 1600);
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const shareInput = document.getElementById('share-url');
+        if (shareInput) {
+            shareInput.value = window.location.href;
+            shareInput.addEventListener('click', copyShareUrl);
+        }
+
+        if (IS_PRIVATE) {
+            const modalEl = document.getElementById('privateShareModal');
+            if (modalEl && typeof bootstrap !== 'undefined') {
+                const bsModal = new bootstrap.Modal(modalEl);
+                bsModal.show();
+            }
+        }
+    });
+
 socket.on("game_ready", () => {
     game_status = "ONGOING";
-    console.debug("game ready!");
 });
 socket.on("render_nameplate", (data) => {
     if (player_slot === "B"){
-        username_a = data.username_b + "(You)";
+        username_a = data.username_b;
         username_b = data.username_a;
     }
     else if (player_slot === "A"){
@@ -50,7 +85,8 @@ socket.on("render_nameplate", (data) => {
         username_a = data.username_a;
         username_b = data.username_b;
     }
-    render_nameplate(username_a, username_b);
+    render_nameplate(username_a, username_b, data.is_player);
+    
 });
 
 socket.on("error", (data) => {
@@ -74,14 +110,26 @@ socket.on("joined_game", (data) => {
     player_slot = data.player_slot; // A or B, or None / Spectator.
     current_player_colour = data.current_player_colour; // w or b, nullable.
     game_status = data.status; // STARTING / ONGOING / FINISHED.
+    check_game_status(game_status);
     is_player = data.is_player;
-
-    console.debug("Player Turn:"+ player_turn);
-    console.debug("Player_Slot:" + player_slot);
-    console.debug("current_player_colour" + current_player_colour);
-    console.debug("current_game status" + game_status);
-    console.debug("Isplayer?" + is_player);
 });
+
+function check_game_status(game_status){
+    if (game_status = "FINISHED" || "STARTING"){
+        new_game_link = document.getElementById("new_game");
+        new_game_link.setAttribute("type","button");
+        new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
+
+        clear_draw_status();
+        const draw_btn = document.getElementById("draw-btn");
+        draw_btn.setAttribute("aria-disabled", "true")
+        draw_btn.classList.add("disabled-link");
+
+        const resign_btn = document.getElementById("resign-btn");
+        resign_btn.setAttribute("aria-disabled", "true")
+        resign_btn.classList.add("disabled-link");
+    };
+}
 
 socket.on("game_over", (data) => {
     if (data.winner === null) {
@@ -298,10 +346,10 @@ function render_board(pos){
     }
 }
 
-function render_nameplate(username_a, username_b){
-    console.debug("Rendering nameplate...");
+function render_nameplate(username_a, username_b, is_player){
     const player_a = document.getElementById("player_a");
     const player_b = document.getElementById("player_b");
+    
     
     const draw_btn = document.getElementById("draw-btn");
     const resign_btn = document.getElementById("resign-btn");
@@ -327,11 +375,16 @@ function render_nameplate(username_a, username_b){
     }
 
     player_a.setAttribute("type", "button");
-    player_a.innerHTML = `<a class="username-item username-link" href="/user/${username_a}">${username_a}</a>`;
+    if (is_player){
+        player_a.innerHTML = player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a} (You) </a>`;
+    }
+    else{
+        player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a}</a>`;
+    }
 
     player_b.setAttribute("type", "button");
     if (username_b !== null){
-        player_b.innerHTML = `<a class="username-item username-link" href="/user/${username_b}">${username_b}</a>`;
+        player_b.innerHTML = `<a class="username-item username-link" href="/profile/${username_b}">${username_b}</a>`;
     }
 
     if (!searching){
@@ -511,12 +564,6 @@ function piece_onclick(img){
     }
 }
 
-function fetch_game(game_id){
-    socket.emit("fetch_game", {game_id}, (game) => {
-        const board = game.board;
-        return board;
-    });
-}
 
 
 // calculate_p to map the board by correctly positioning them to the UI by intaking square{file:str,rank:int}, and returns pos.

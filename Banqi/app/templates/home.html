@@ -1,24 +1,88 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <!--Jumbotron-->
-    <div class="jumbotron jumbotron-fluid">
-        <div class="container-fluid">
-            <div class="row">
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <div class="col-md-1">.col-md-1</div>
-                <h1 class="display-4">Hello {{ current_user.username }}!</h1>
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12 col-md-12" style="align-items: center;">
+            <h1 class="display-5">Welcome{{ ' ' + current_user.username if current_user.is_authenticated else ', Guest' }}!</h1>
+            <p class="lead text-muted">Play Banqi — a strategic chess-like experience. Invite a friend or spectate ongoing matches.</p>
+            <div class="hero-cta btn-grid">
+                <div class="cta-unit">
+                    <a href="{{ url_for('play.game', game_id='') }}" class="btn btn-warning btn-lg row">
+                        <p style="text-align:center;">Quick Match</p>
+                        <p class="cta-description" style="text-align: center;">start a new game</p>
+                    </a>
+                </div>
+
+                <div class="cta-unit">
+                    <a href="{{ url_for('play.create_private_game', game_id='') }}" class="btn btn-warning btn-lg row">
+                        <p style="text-align:center;">Challenge Friends</p>
+                        <p class="cta-description" style="text-align: center;">play a friend and create a private match</p>
+                    </a>
+                </div>
+                
+
+                <div class="cta-unit">
+                    <a href="{{ url_for('spectate.spectate') }}" class="btn btn-dark btn-lg row">
+                        <p style="text-align:center;">Spectate</p>
+                        <p class="cta-description" style="text-align: center;">watch live matches</p>
+                    </a>
+                </div>
+
+                <div class="cta-unit">
+                    <a href="{{ url_for('home.home') }}"  class="btn btn-dark btn-lg row">
+                        <p style="text-align: center;">My Stats</p>
+                        <p class="cta-description" style="text-align: center;">view your stat</p>
+                    </a>
+                </div>
+
             </div>
-        </div>   
+        </div>
     </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card Previous-Games">
+                <div class="card-header">
+                    <strong>Previous Games</strong>
+                </div>
+                <div class="card-body Previous-Games">
+                    {% if previous_games is defined and previous_games|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Opponent</th>
+                                        <th>Result</th>
+                                        <th>Date</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for g in previous_games %}
+                                    <tr>
+                                        <td>{{ g.opponent_username or g.opponent or '—' }}</td>
+                                        <td>{{ g.result or 'Unknown' }}</td>
+                                        <td>{{ g.date or '—' }}</td>
+                                        <td class="text-end">
+                                            {% if g.game_id %}
+                                                <a href="{{ url_for('play.game', game_id=g.game_id) }}" class="btn btn-sm btn-primary">View</a>
+                                            {% else %}
+                                                <span class="text-muted">—</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="mb-0 text-muted">You don't have any previous games yet. Click <a href="{{ url_for('play.create_game') }}">Play</a> to start one.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

@@ -2,5 +2,11 @@
     "python.analysis.typeCheckingMode": "standard",
     "javascript.validate.enable": true,
     "javascript.implicitProjectConfig.checkJs": true,
-    "python-envs.pythonProjects": []
+    "python-envs.pythonProjects": [
+        {
+            "path": "app/static/style folder",
+            "envManager": "ms-python.python:venv",
+            "packageManager": "ms-python.python:pip"
+        }
+    ]
 }

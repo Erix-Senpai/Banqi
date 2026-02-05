@@ -9,9 +9,30 @@
                 <!-- Player A -->
                 <div class="player-nameboard">
                     <div class="col-12">
+                        {% if not IS_PRIVATE %}
                         <p class="searching" id="searching">
                             Searching<span class="dots"></span>
                         </p>
+                        {% else %}
+                        <div class="modal fade" id="privateShareModal" tabindex="-1" aria-labelledby="privateShareModalLabel" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title" id="privateShareModalLabel">Private Game — Share Link</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <p class="text-muted">This is a private game. Share the link below so others can join.</p>
+                                        <div class="input-group">
+                                            <input type="text" id="share-url" class="form-control" readonly aria-label="Share URL">
+                                            <button class="btn btn-outline-primary" type="button" id="copy-btn" onclick="copyShareUrl()">Copy</button>
+                                        </div>
+                                        <small class="form-text text-muted mt-2">Click the input or the button to copy the current page URL to your clipboard.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
                         <a class="player-name" id="player_b"></a>
                     </div>
                 </div>
@@ -56,12 +77,12 @@
  <!--1. Load Socket.IO client library -->
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <!--Include the game JS (put this file at static/js/game.js)-->
- <script>
+<script>
     const GAME_ID = "{{ game_id }}";
+    const IS_PRIVATE = "{{ is_private }}";
 </script>
 <script src="{{ url_for('static', filename='js/game.js') }}"></script>
-<script>
-</script><!--Initialise Board from game.js-->
+<!--Initialise Board from game.js-->
 
 
 {% endblock %}

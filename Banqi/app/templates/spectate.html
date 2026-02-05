@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12 col-md-12" style="align-items: center;">
+            <h1 class="display-5">Watch Live Games:</h1>
+            <div class="hero-cta btn-grid">
+                {% if active_games is defined and active_games|length > 0 %}
+                    {% for g in active_games %}
+                    <div class="cta-unit">
+                        <a href="{{ url_for('play.game', game_id=g.game_id) }}" class="btn btn-outline-primary btn-lg row">
+                            <p style="text-align:center;">{{ g.game_id }}</p>
+                            <p class="cta-description" style="text-align: center;">{{ g.players }}</p>
+                        </a>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="alert alert-secondary" role="alert">
+                            There are no active games right now. Check back later or start a <a href="{{ url_for('play.create_game') }}">new game</a>.
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+{% endblock %}
