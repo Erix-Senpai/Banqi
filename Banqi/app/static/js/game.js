@@ -74,7 +74,7 @@ socket.on("game_ready", () => {
 });
 socket.on("render_nameplate", (data) => {
     if (player_slot === "B"){
-        username_a = data.username_b + "(You)";
+        username_a = data.username_b;
         username_b = data.username_a;
     }
     else if (player_slot === "A"){
@@ -85,7 +85,7 @@ socket.on("render_nameplate", (data) => {
         username_a = data.username_a;
         username_b = data.username_b;
     }
-    render_nameplate(username_a, username_b);
+    render_nameplate(username_a, username_b, data.is_player);
     
 });
 
@@ -346,9 +346,10 @@ function render_board(pos){
     }
 }
 
-function render_nameplate(username_a, username_b){
+function render_nameplate(username_a, username_b, is_player){
     const player_a = document.getElementById("player_a");
     const player_b = document.getElementById("player_b");
+    
     
     const draw_btn = document.getElementById("draw-btn");
     const resign_btn = document.getElementById("resign-btn");
@@ -374,11 +375,16 @@ function render_nameplate(username_a, username_b){
     }
 
     player_a.setAttribute("type", "button");
-    player_a.innerHTML = `<a class="username-item username-link" href="/user/${username_a}">${username_a}</a>`;
+    if (is_player){
+        player_a.innerHTML = player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a} (You) </a>`;
+    }
+    else{
+        player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a}</a>`;
+    }
 
     player_b.setAttribute("type", "button");
     if (username_b !== null){
-        player_b.innerHTML = `<a class="username-item username-link" href="/user/${username_b}">${username_b}</a>`;
+        player_b.innerHTML = `<a class="username-item username-link" href="/profile/${username_b}">${username_b}</a>`;
     }
 
     if (!searching){

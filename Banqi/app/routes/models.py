@@ -9,6 +9,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(24), unique=True, nullable = False)
     password_hash = db.Column(db.String(256), nullable = False)
+    elo = db.Column(db.Integer, nullable = False, default=1200)
 
     game = db.relationship("Player", back_populates="user")
 

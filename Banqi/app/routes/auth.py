@@ -1,10 +1,11 @@
 from flask import Blueprint, flash, render_template, url_for, redirect, current_app
 from flask_bcrypt import generate_password_hash, check_password_hash
-from flask_login import login_user, login_required, logout_user
-from .models import User
+from flask_login import login_user, login_required, logout_user, current_user
+from .models import User, Player, Game
 from .forms import LoginForm, RegisterForm
 from .. import db, bcrypt
 from flask import session
+from sqlalchemy import func
 
 # Create a blueprint - make sure all BPs have unique names
 auth_bp = Blueprint('auth', __name__)
@@ -78,4 +79,42 @@ def logout():
     logout_user()
     flash('You have been logged out.')
     return redirect(url_for('home.home'))
+
+
+# Profile route
+@auth_bp.route('/profile/<username>')
+def profile(username):
+    user = db.session.scalar(db.select(User).where(User.username==username))
+    
+    if user is None:
+        flash(f'User "{username}" not found.')
+        return redirect(url_for('home.home'))
+    
+    # Calculate stats
+    # Get all games for this user
+    player_records = Player.query.filter_by(user_id=user.id).all()
+    
+    # Total games played
+    total_games = len(player_records)
+    
+    # Count wins
+    wins = sum(1 for p in player_records if p.result == 'win')
+    
+    # Calculate win rate
+    win_rate = (wins / total_games * 100) if total_games > 0 else 0
+    
+    # Get leaderboard rank based on ELO
+    # Count how many users have higher ELO
+    users_with_higher_elo = db.session.query(User).filter(User.elo > user.elo).count()
+    leaderboard_rank = users_with_higher_elo + 1
+    
+    stats = {
+        'total_games': total_games,
+        'wins': wins,
+        'win_rate': round(win_rate, 2),
+        'elo': round(user.elo, 0),
+        'leaderboard_rank': leaderboard_rank
+    }
+    
+    return render_template('bootstrap5/profile.html', stats=stats, user=user)
 

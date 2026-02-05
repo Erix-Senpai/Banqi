@@ -204,7 +204,7 @@ def join_game(data: dict) -> None:
     }, to=request.sid)  # type: ignore
     username_a = game.state["players"]["A"]["username"]
     username_b = game.state["players"]["B"]["username"]
-    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b}, room=game_id)  # type: ignore
+    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b, "is_player": is_player}, room=game_id)  # type: ignore
     
 
 def view_game_history(game_id: str, user_id: str) -> None:
@@ -229,8 +229,8 @@ def view_game_history(game_id: str, user_id: str) -> None:
     }, to=request.sid)  # type: ignore
     username_a = game.state["players"]["A"]["username"]
     username_b = game.state["players"]["B"]["username"]
-    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b}, room=sid)  # type: ignore
-
+    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b, "is_player": is_player}, room=sid)  # type: ignore
+#TODO:  
 ### Socket Events for Player Actions ###
 @socketio.on("try_reveal_piece")
 def try_reveal_piece(data:dict) -> None:
