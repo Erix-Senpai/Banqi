@@ -86,6 +86,7 @@ socket.on("render_nameplate", (data) => {
         username_b = data.username_b;
     }
     render_nameplate(username_a, username_b);
+    
 });
 
 socket.on("error", (data) => {
@@ -109,8 +110,26 @@ socket.on("joined_game", (data) => {
     player_slot = data.player_slot; // A or B, or None / Spectator.
     current_player_colour = data.current_player_colour; // w or b, nullable.
     game_status = data.status; // STARTING / ONGOING / FINISHED.
+    check_game_status(game_status);
     is_player = data.is_player;
 });
+
+function check_game_status(game_status){
+    if (game_status = "FINISHED" || "STARTING"){
+        new_game_link = document.getElementById("new_game");
+        new_game_link.setAttribute("type","button");
+        new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
+
+        clear_draw_status();
+        const draw_btn = document.getElementById("draw-btn");
+        draw_btn.setAttribute("aria-disabled", "true")
+        draw_btn.classList.add("disabled-link");
+
+        const resign_btn = document.getElementById("resign-btn");
+        resign_btn.setAttribute("aria-disabled", "true")
+        resign_btn.classList.add("disabled-link");
+    };
+}
 
 socket.on("game_over", (data) => {
     if (data.winner === null) {

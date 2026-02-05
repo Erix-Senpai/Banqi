@@ -12,18 +12,20 @@ def spectate():
     """
     results = []
     try:
-        for game_id, game in list(active_games.items())[:10]:
-            try:
-                a = game.state.get('players', {}).get('A', {}).get('username')
-                b = game.state.get('players', {}).get('B', {}).get('username')
-            except Exception:
-                a = None
-                b = None
-            players = f"{a or 'Waiting'} vs {b or 'Waiting'}"
-            results.append({
-                'game_id': game_id,
-                'players': players,
-            })
+        for game_id, game in list(active_games.items())[:15]:
+            if game.state.get("status") == "ONGOING":
+                try:
+                    a = game.state.get('players', {}).get('A', {}).get('username')
+                    b = game.state.get('players', {}).get('B', {}).get('username')
+                except Exception:
+                    a = None
+                    b = None
+                players = f"{a or 'Waiting'} vs {b or 'Waiting'}"
+                results.append({
+                    'game_id': game_id,
+                    'players': players,
+                })
+            else: pass
     except Exception:
         results = []
 

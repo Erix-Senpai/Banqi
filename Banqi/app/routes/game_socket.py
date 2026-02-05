@@ -142,10 +142,16 @@ def join_game(data: dict) -> None:
             loaded = load_game_from_db(game_id)
             if loaded:
                 try:
-                    active_games[game_id].state = loaded
+                    print("debugging...")
+                    game = Game_State(game_id)
+                    game.state = loaded
+                    active_games[game_id] = game
+                    print("game loaded.")
                     game = active_games.get(game_id)
-                    view_game_history(game_id)
-                except Exception:
+                    print(f"Active game with id {game_id} : {active_games.get(game_id)}  ")
+                    view_game_history(game_id, user_id)
+                except Exception as e:
+                    print(f"debug exception. {e}")
                     return
                 return
             else:
@@ -159,6 +165,7 @@ def join_game(data: dict) -> None:
     if not game:
         socketio.emit("error", {"message": "Game not found."}, room=sid)  # type: ignore
         return
+
     ### Game_id hold true here on
     # Discern if player is trying to join a game, or simply redirected.
     if game.is_private:
@@ -200,7 +207,9 @@ def join_game(data: dict) -> None:
     socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b}, room=game_id)  # type: ignore
     
 
-def view_game_history(game_id: str) -> None:
+def view_game_history(game_id: str, user_id: str) -> None:
+    print("debugging...")
+    sid = request.sid # type: ignore
     game = active_games.get(game_id)
     if not game:
         return
