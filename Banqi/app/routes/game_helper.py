@@ -1,4 +1,35 @@
 import random
+from enum import auto, Enum
+
+class GAME_STATUS(Enum):
+    STARTING = auto()
+    ONGOING = auto()
+    FINISHED = auto()
+
+class GAME_RESULT(Enum):
+    WIN = "win"
+    LOSS = "loss"
+    DRAW = "draw"
+
+PIECE_NOTATION_LIST = {
+    'b_king': 'bK',
+    'b_advisor': 'bA',
+    'b_elephant': 'bE',
+    'b_chariot': 'bR',
+    'b_horse': 'bH',
+    'b_catapult': 'bC',
+    'b_pawn': 'bP',
+    'w_king': 'rK',
+    'w_advisor': 'rA',
+    'w_elephant': 'rE',
+    'w_chariot': 'rR',
+    'w_horse': 'rH',
+    'w_catapult': 'rC',
+    'w_pawn': 'rP'
+}
+
+PLAYER_TURN_TOGGLE = {'A': 'B', 'B': 'A'}
+
 def INIT_POS() -> dict:
     return {
         f"{str(file)}{int(rank)}": "unknown"

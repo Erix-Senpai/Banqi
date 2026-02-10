@@ -1,7 +1,7 @@
 from flask_socketio import emit, join_room, leave_room
 from .. import socketio
 from enum import Enum, auto
-from .game_helper import INIT_POS, INIT_PIECE_POOL, get_piece
+from .game_helper import INIT_POS, INIT_PIECE_POOL, get_piece, GAME_STATUS, GAME_RESULT, PIECE_NOTATION_LIST, PLAYER_TURN_TOGGLE
 from flask import request
 from flask_login import current_user
 import uuid
@@ -9,15 +9,12 @@ from sqlalchemy.orm import selectinload
 from flask import current_app, session
 import random
 from app import db
-from .models import Game, Player, Move
+from .models import Game, Player, Move, User
 import threading
 import time
 from datetime import date
 from collections import deque
-class Game_result(Enum):
-    WIN = "win"
-    LOSS = "loss"
-    DRAW = "draw"
+
 class Game_State:
     def __init__(self, game_id, is_private=False):
         self.id = game_id
@@ -32,29 +29,13 @@ class Game_State:
         # runtime-only (NOT in state dict)
         self.sockets = {}      # user_id -> sid
         self.spectators = {}   # user_id -> sid
+
 active_games: dict[str, Game_State]
 active_games = {}
 open_games: deque[str] = deque()
 queue_lock = threading.Lock()
 pending_disconnected_user = {}
 online_users = {}
-PIECE_NOTATION_LIST = {
-    'b_king': 'bK',
-    'b_advisor': 'bA',
-    'b_elephant': 'bE',
-    'b_chariot': 'bR',
-    'b_horse': 'bH',
-    'b_catapult': 'bC',
-    'b_pawn': 'bP',
-    'w_king': 'rK',
-    'w_advisor': 'rA',
-    'w_elephant': 'rE',
-    'w_chariot': 'rR',
-    'w_horse': 'rH',
-    'w_catapult': 'rC',
-    'w_pawn': 'rP'
-}
-PLAYER_TURN_TOGGLE = {'A': 'B', 'B': 'A'}
 ### Socket Event Handlers ###
 
 @socketio.on("connect")
@@ -65,6 +46,12 @@ def connect():
     guest = session.get("is_guest")
     user_id = session.get("user_id")
     online_users[user_id] = {"username": username, "guest": guest, "sid": sid}
+    if pending_disconnected_user.get(user_id):
+        try:
+            del pending_disconnected_user[user_id]
+            print("Debugging - User has reconnected.")
+        except Exception:
+            return
 
 
 def create_game(is_private=False):
@@ -82,23 +69,29 @@ def queue_game(game_id, user_id, username):
         players = game.state.get("players")
         if not players:
             return
-        if game.state["status"] == GAME_STATE.STARTING.name:
+        if game.state["status"] == GAME_STATUS.STARTING.name:
             if players["A"].get("user_id") != user_id and players["B"].get("user_id") != user_id:
+                # Fetch player's ELO from database
+                from .models import User
+                user = db.session.get(User, user_id)
+                player_elo = user.elo if user else 1200
+                
                 if (players["A"].get("user_id") == None):
                     players["A"]["user_id"] = user_id
                     players["A"]["username"] = username
+                    players["A"]["elo"] = player_elo
+                    
                 elif (players["B"].get("user_id") == None):
                     players["B"]["user_id"] = user_id
                     players["B"]["username"] = username
+                    players["B"]["elo"] = player_elo
                 if game.state["players"]["A"].get("user_id") != None and game.state["players"]["B"].get("user_id") != None:
-                    game.state["status"] = GAME_STATE.ONGOING.name
+                    game.state["status"] = GAME_STATUS.ONGOING.name
                     if not game.is_private:
                         open_games.remove(game.id)
                 
     except Exception:
         pass
-
-#TODO: When a user opens a game through database, the game is not processed correctly.
 @socketio.on("join_game")
 def join_game(data: dict) -> None:
     try:
@@ -175,22 +168,38 @@ def join_game(data: dict) -> None:
             socketio.emit("error", {"message": "Game not found."}, room=sid)  # type: ignore
             return
     join_room(game_id)
-    if game.state["status"] == GAME_STATE.ONGOING.name:
+    if game.state["status"] == GAME_STATUS.ONGOING.name:
         socketio.emit("game_ready", {
             "game_id": game_id,
             "message": "Both players joined! Game starting."
         }, room=game_id)  # type: ignore
-    if game.state["players"]["A"].get("user_id") == user_id and game.state["status"] != GAME_STATE.FINISHED.name:
+    if game.state["players"]["A"].get("user_id") == user_id and game.state["status"] != GAME_STATUS.FINISHED.name:
         player_slot = "A"
         is_player = True
-    elif game.state["players"]["B"].get("user_id") == user_id and game.state["status"] != GAME_STATE.FINISHED.name:
+    elif game.state["players"]["B"].get("user_id") == user_id and game.state["status"] != GAME_STATUS.FINISHED.name:
         player_slot = "B"
         is_player = True
     else:
         player_slot = "Spectator"
+        #TODO: ANON users should not be able to lose or gain elo. #COMPLETED
+        #TODO: Add spectator count if spectator.
+        #TODO: Add skins for english players. #COMPLETED
+        #TODO: add tutorial?
+        #TODO: add a chat box for spectators to talk amongst themselves, and with players if players opt in.
+        #TODO: add a funct where on game_over, update user's displayed elo
+        #TODO: when user checks for historical games, some items arent parsed through correctly
+        #TODO: when user types for url /profile/<username>, need to intake username as a str
         is_player = False
-
     current_player_turn = game.state.get("player_turn")
+    try:
+        user = db.session.get(User, session.get("user_id"))
+        if user:
+            piece_skin = str(user.piece_skin)
+        else:
+            piece_skin = "chinese"
+    except Exception:
+        piece_skin = "chinese"
+        pass
     socketio.emit("joined_game", {
         "game_id": game_id,
         "board": game.state.get("board"),
@@ -200,12 +209,16 @@ def join_game(data: dict) -> None:
         "player_slot": player_slot,
         "player_turn": current_player_turn,
         "is_player": is_player,
-        "current_player_colour": game.state["players"][current_player_turn]["colour"]
-    }, to=request.sid)  # type: ignore
+        "current_player_colour": game.state["players"][current_player_turn]["colour"],
+        "piece_skin": piece_skin
+        },to=request.sid)  # type: ignore
     username_a = game.state["players"]["A"]["username"]
     username_b = game.state["players"]["B"]["username"]
-    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b, "is_player": is_player}, room=game_id)  # type: ignore
-    
+    elo_a = game.state["players"]["A"]["elo"]
+    elo_b = game.state["players"]["B"]["elo"]
+    socketio.emit("render_nameplate", {"username_a": username_a, "elo_a": elo_a,"username_b": username_b, "elo_b": elo_b, "is_player": is_player}, room=game_id)  # type: ignore
+    if (not is_player and game.state.get("status") != GAME_STATUS.FINISHED):
+        join_spectator(game_id)
 
 def view_game_history(game_id: str, user_id: str) -> None:
     print("debugging...")
@@ -229,8 +242,22 @@ def view_game_history(game_id: str, user_id: str) -> None:
     }, to=request.sid)  # type: ignore
     username_a = game.state["players"]["A"]["username"]
     username_b = game.state["players"]["B"]["username"]
-    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b, "is_player": is_player}, room=sid)  # type: ignore
-#TODO:  
+    # include piece_skin where possible so clients can render correct assets
+    try:
+        try_skin = 'chinese'
+        if current_user.is_authenticated:
+            usr = db.session.get(User, current_user.id)
+            if usr and getattr(usr, 'piece_skin', None):
+                try_skin = usr.piece_skin
+        elif isinstance(session.get('user_id'), int):
+            usr = db.session.get(User, session.get('user_id'))
+            if usr and getattr(usr, 'piece_skin', None):
+                try_skin = usr.piece_skin
+    except Exception:
+        try_skin = 'chinese'
+
+    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b, "is_player": is_player, "piece_skin": try_skin}, room=sid)  # type: ignore
+
 ### Socket Events for Player Actions ###
 @socketio.on("try_reveal_piece")
 def try_reveal_piece(data:dict) -> None:
@@ -247,7 +274,7 @@ def try_reveal_piece(data:dict) -> None:
         user_id = session["user_id"]
         # Validate player
         if (game.state["players"][current_player_colour]["user_id"] != user_id): return
-        if (game.state["status"] == GAME_STATE.FINISHED.name): return
+        if (game.state["status"] == GAME_STATUS.FINISHED.name): return
 
         # Validate board state
         if not (game.state["board"][square] == "unknown"): return
@@ -258,7 +285,7 @@ def try_reveal_piece(data:dict) -> None:
         # If colour is not set i.e. on first move, assign colour
         if not game.state["players"]["A"]["colour"]:
             set_player_colour(game_id, revealed_piece[0])
-            game.state["status"] = GAME_STATE.ONGOING.name
+            game.state["status"] = GAME_STATUS.ONGOING.name
         
         # Update Board
         game.state["board"][square] = revealed_piece
@@ -295,7 +322,7 @@ def try_make_move(data: dict) -> None:
         user_id = session["user_id"]
         # Validate player
         if (game.state["players"][player_turn]["user_id"] != user_id): return
-        if (game.state["status"] != GAME_STATE.ONGOING.name): return
+        if (game.state["status"] != GAME_STATUS.ONGOING.name): return
         player_colour = game.state["players"][player_turn]["colour"]
         # Validate board state
         if not (board[sq1][0] == player_colour and board[sq2] == "none" and is_adjacent(sq1, sq2)): return
@@ -334,7 +361,7 @@ def try_capture(data: dict) -> None:
         
         # Validate player
         if (game.state["players"][player_turn]["user_id"] != session["user_id"]): return
-        if (game.state["status"] != GAME_STATE.ONGOING.name): return
+        if (game.state["status"] != GAME_STATUS.ONGOING.name): return
         player_colour = game.state["players"][player_turn]["colour"]
         # Validate board state
         if not (board[sq1][0] == player_colour):
@@ -359,6 +386,26 @@ def try_capture(data: dict) -> None:
     except Exception:
         return
 
+def join_spectator(game_id: str):
+    if not game_id:
+        return
+    user_id = session["user_id"]
+
+    game = active_games.get(game_id)
+    if not game:
+        return
+
+    with game.lock:
+        game.spectators[user_id] = request.sid #type: ignore
+    
+    socketio.emit(
+        "spectator_update",
+        {
+            "count": len(game.spectators)
+        },
+        room=game_id #type: ignore
+    )
+
 @socketio.on("disconnected")
 def handle_disconnect(data) -> None:
     """Handle socket disconnects: remove sid from any game's connections and
@@ -370,17 +417,30 @@ def handle_disconnect(data) -> None:
             return
         game_id = data.get("game_id")
         game = active_games.get(game_id)
+        
         if not game:
             return
-        if (game.state["status"] == GAME_STATE.FINISHED.name): return
-        with game.lock:
-            if game.state["status"] == GAME_STATE.STARTING.name:
-                del active_games[game_id]
-                del game.state[game_id]
-                return
         sid = request.sid # type: ignore
         user_id = session["user_id"]
         username = session["username"]
+        try:
+            del game.spectators[user_id]
+            socketio.emit(
+            "spectator_update",
+            {
+                "count": len(game.spectators)
+            },
+            room=game_id #type: ignore
+        )
+        except Exception:
+            pass
+        leave_room(room=game_id)
+        if (game.state["status"] == GAME_STATUS.FINISHED.name): return
+        with game.lock:
+            if game.state["status"] == GAME_STATUS.STARTING.name:
+                del active_games[game_id]
+                del game.state[game_id]
+                return
         try:
             online_users.pop(user_id, None)
         except KeyError:
@@ -416,7 +476,7 @@ def handle_disconnect(data) -> None:
                 return
 
         # if no more connected clients and game is finished, free memory
-        if (not conns) and gs.get("status") == GAME_STATE.FINISHED.name:
+        if (not conns) and gs.get("status") == GAME_STATUS.FINISHED.name:
             try:
                 del game.state[gid]
                 del active_games[gid]
@@ -452,7 +512,7 @@ def try_draw(data: dict) -> None:
         if not game:
             return
 
-        if (game.state["status"] != GAME_STATE.ONGOING.name): return
+        if (game.state["status"] != GAME_STATUS.ONGOING.name): return
         user_id = session["user_id"]
         # Validate player
 
@@ -516,10 +576,10 @@ def is_draw(game_id: str) -> bool:
     player_b = game.state["players"]["B"]
     if (player_a["req"] == "draw" and player_b["req"] == "draw"):
             # End the game as a draw
-            game.state["status"] = GAME_STATE.FINISHED.name
+            game.state["status"] = GAME_STATUS.FINISHED.name
             # Use a neutral 'Draw' marker for winner field so client shows appropriately
             game.state["winner"] = None
-            socketio.emit("game_over", {"game_id": game_id, "winner": None, "result": "Draw", "reason": "Draw Agreement"}, room=game_id)  # type: ignore
+            socketio.emit("game_over", {"game_id": game_id, "winner": None, "result": "draw", "reason": "Draw Agreement"}, room=game_id)  # type: ignore
             archive_game_to_db(game_id)
             return True
     return False
@@ -585,7 +645,7 @@ def try_resign(data: dict) -> None:
         if not game:
             return
 
-        if (game.state["status"] != GAME_STATE.ONGOING.name): return
+        if (game.state["status"] != GAME_STATUS.ONGOING.name): return
 
         user_id = session["user_id"]
         
@@ -600,7 +660,7 @@ def try_resign(data: dict) -> None:
 
         # Validated; resign the game.
         winner = game.state["players"][winner_team]["username"]
-        game.state["status"] = GAME_STATE.FINISHED.name
+        game.state["status"] = GAME_STATUS.FINISHED.name
         game.state["winner"] = winner
         archive_game_to_db(game_id)
         # mark finished and archive
@@ -610,10 +670,7 @@ def try_resign(data: dict) -> None:
     
 ### Game Logic Functions ###
 
-class GAME_STATE(Enum):
-    STARTING = auto()
-    ONGOING = auto()
-    FINISHED = auto()
+
 
 class PieceType(Enum):
     """
@@ -677,8 +734,8 @@ def record_move(game_id: str, notation: str)->None:
     try:
         toggle_turn_hash(game.state)
         if (record_position(game.state)):
-            game.state["status"] = GAME_STATE.FINISHED.name
-            socketio.emit("game_over", {"game_id": game_id, "winner": None, "result": "Draw", "reason": "draw by repetition"}, room=game_id) # type: ignore
+            game.state["status"] = GAME_STATUS.FINISHED.name
+            socketio.emit("game_over", {"game_id": game_id, "winner": None, "result": "draw", "reason": "draw by repetition"}, room=game_id) # type: ignore
             try:
                 archive_game_to_db(game_id)
                 return
@@ -686,7 +743,7 @@ def record_move(game_id: str, notation: str)->None:
                 pass
         elif (is_checkmate(game_id)):
             try:
-                game.state["status"] = GAME_STATE.FINISHED.name
+                game.state["status"] = GAME_STATUS.FINISHED.name
                 winner = game.state["winner"]
                 socketio.emit("game_over", {"game_id": game_id, "winner": winner, "result": "win", "reason": "checkmate"}, room=game_id) # type: ignore
                 archive_game_to_db(game_id)
@@ -806,10 +863,10 @@ def checkmate_by_disconnection(game_id: str, loser_username: str) -> None:
         game = active_games.get(game_id)
         if not game:
             return
-        if game.state.get("status") != GAME_STATE.ONGOING.name:
+        if game.state.get("status") != GAME_STATUS.ONGOING.name:
             return
 
-        game.state["status"] = GAME_STATE.FINISHED.name
+        game.state["status"] = GAME_STATUS.FINISHED.name
         if (game.state["players"]["A"]["username"] == loser_username):
             winner_username = game.state["players"]["B"]["username"]
         else:
@@ -818,7 +875,7 @@ def checkmate_by_disconnection(game_id: str, loser_username: str) -> None:
         # Emit to connected clients first so the message is delivered
         # even if archiving later removes the in-memory state.
         try:
-            socketio.emit("game_over", {"game_id": game_id, "winner": winner_username, "reason": "Abandonment."}, room=game_id) # type: ignore
+            socketio.emit("game_over", {"game_id": game_id, "winner": winner_username,"result": "win", "reason": "Abandonment."}, room=game_id) # type: ignore
         except Exception as e:
             print(f"[DISCONNECT-EMIT-ERROR] Failed to emit game_over for {game_id}: {e}")
         # Archive the game; keep this resilient to DB errors.
@@ -902,14 +959,14 @@ def init_game_state():
         "player_turn": "A",
         "move_count": 0,
         "players": {
-            "A": {"user_id": None,  "username": None, "colour": None},
-            "B": {"user_id": None, "username": None, "colour": None}
+            "A": {"user_id": None,  "username": None, "colour": None, "elo": None},
+            "B": {"user_id": None, "username": None, "colour": None, "elo": None}
         },
         "moves": {
             "A": [],
             "B": []
         },
-        "status": GAME_STATE.STARTING.name,
+        "status": GAME_STATUS.STARTING.name,
         "winner": None,
         # runtime-only: track connected socket ids (not persisted)
     }
@@ -973,53 +1030,96 @@ def load_game_from_db(game_id: str):
     except Exception:
         current_app.logger.exception(f"Failed to load game {game_id}")
         return None
+
 def archive_game_to_db(game_id) -> None:
     game = active_games.get(game_id)
     if not game:
         return
-
-    game_state = game.state
-
     try:
         game_model = Game()
         game_model.id = game_id
-        game_model.board = game_state["board"]
-        game_model.piece_pool = game_state["piece_pool"]
-        game_model.player_turn = game_state.get("player_turn", "A")
-        game_model.move_count = game_state.get("move_count", 0)
-        game_model.status = GAME_STATE.FINISHED.name
+        game_model.board = game.state["board"]
+        game_model.piece_pool = game.state["piece_pool"]
+        game_model.player_turn = game.state.get("player_turn", "A")
+        game_model.move_count = game.state.get("move_count", 0)
+        game_model.status = GAME_STATUS.FINISHED.name
         game_model.date = date.today()
 
         db.session.add(game_model)
 
-        winner_slot = game_state.get("winner")  # "A", "B", or None
-
+        winner = game.state.get("winner")  # winner username
+        import math
+        player_a_elo = game.state["players"]["A"]["elo"]
+        player_b_elo = game.state["players"]["B"]["elo"]
+        elo_diff = math.floor(math.sqrt((abs(player_a_elo - player_b_elo))/25))
+        if elo_diff > 10:
+            elo_diff = 10
         for slot in ["A", "B"]:
-            p = game_state["players"][slot]
+            p = game.state["players"][slot]
             if p.get("user_id") is None:
                 continue
+
+            user_id = p.get("user_id")
+            # Check if user is a guest (user_id starts with "ANON_")
+            is_guest = isinstance(user_id, str) and user_id.startswith("ANON_")
+            
+            # Skip adding guest player data to database
+            if is_guest:
+                continue # skips the iteration for guest players
 
             gp = Player()
             gp.game_id = game_id
             gp.player_slot = slot
-            gp.user_id = p.get("user_id")
+            gp.user_id = user_id
             gp.username = p.get("username")
             gp.colour = p.get("colour")
-
-            # ✅ assign per-player result
-            if winner_slot is None:
-                gp.result = Game_result.DRAW.name
-            elif slot == winner_slot:
-                gp.result = Game_result.WIN.name
+            gp.elo_p = p.get("elo")
+            
+            
+            # Determine player's ELO and opponent's ELO
+            player_elo = game.state["players"][slot]["elo"]
+            opponent_slot = "B" if slot == "A" else "A"
+            opponent_elo = game.state["players"][opponent_slot]["elo"]
+            
+            if player_elo > opponent_elo:
+                elo_change = 10 - elo_diff
+            elif player_elo < opponent_elo:
+                elo_change = 10 + elo_diff
             else:
-                gp.result = Game_result.LOSS.name
-
+                elo_change = 10
+            
+            # Calculate ELO change based on rating difference
+            if winner is None:
+                gp.result = GAME_RESULT.DRAW.name
+                gp.elo_change = math.floor(elo_change/2)
+                
+            elif p.get("username") == winner:
+                gp.result = GAME_RESULT.WIN.name
+                gp.elo_change = elo_change
+            else:
+                gp.result = GAME_RESULT.LOSS.name
+                gp.elo_change = -elo_change
             db.session.add(gp)
+            # Apply elo change to the User record (if present)
+            try:
+                from .models import User
+                user_rec = db.session.get(User, gp.user_id)
+                if user_rec:
+                    current_elo = user_rec.elo if user_rec.elo is not None else 0
+                    change = gp.elo_change if gp.elo_change is not None else 0
+                    new_elo = current_elo + change
+                    if new_elo < 0:
+                        new_elo = 0
+                    user_rec.elo = new_elo
+                    db.session.add(user_rec)
+            except Exception:
+                # If updating the user fails for any reason, continue without blocking archive
+                pass
 
         # moves unchanged
         move_number = 1
         for slot in ["A", "B"]:
-            for notation in game_state["moves"][slot]:
+            for notation in game.state["moves"][slot]:
                 mv = Move()
                 mv.game_id = game_id
                 mv.player_slot = slot
@@ -1027,7 +1127,7 @@ def archive_game_to_db(game_id) -> None:
                 mv.notation = notation
                 db.session.add(mv)
                 move_number += 1
-
+        
         db.session.commit()
 
         del active_games[game_id]

@@ -12,6 +12,15 @@ let player_slot = null;
 let current_player_colour = null;
 let game_status = "STARTING";
 let is_player = false;
+// piece skin controls which image variant to load. 'chinese' uses the base name,
+// 'picture' uses the 'en' suffix (e.g. b_kingen.png)
+let PIECE_SKIN = 'chinese';
+
+function pieceUrl(piece){
+    if (!piece) return '';
+    const suffix = (PIECE_SKIN === 'picture') ? 'en_' : '';
+    return `/static/image_folder/${suffix}${piece}.png`;
+}
 //calls upon initialisation.
 socket.on("connect", () => {
     // GAME_ID can be empty string if user clicked "Play" without a URL game_id
@@ -73,19 +82,33 @@ socket.on("game_ready", () => {
     game_status = "ONGOING";
 });
 socket.on("render_nameplate", (data) => {
+    // update piece skin if provided by server
+    if (data && data.piece_skin){
+        PIECE_SKIN = data.piece_skin;
+    }
     if (player_slot === "B"){
         username_a = data.username_b;
+        elo_a = data.elo_b;
+
+        elo_b = data.elo_a;
         username_b = data.username_a;
     }
     else if (player_slot === "A"){
-        username_a = data.username_a + "(You)";
+        username_a = data.username_a;
+        elo_a = data.elo_a;
+
         username_b = data.username_b;
+        elo_b = data.elo_b;
     }
     else{
         username_a = data.username_a;
+        elo_a = data.elo_a;
+
         username_b = data.username_b;
+        elo_b = data.elo_b;
     }
-    render_nameplate(username_a, username_b, data.is_player);
+    is_player = data.is_player;
+    render_nameplate(username_a, elo_a, username_b, elo_b);
     
 });
 
@@ -95,7 +118,11 @@ socket.on("error", (data) => {
     window.location.href = "/";
 });
 
+
 socket.on("joined_game", (data) => {
+
+    // set piece skin first so render_board loads correct assets
+    PIECE_SKIN = data.piece_skin || PIECE_SKIN || 'chinese';
 
     // NOW initialize board
     render_board(data.board);
@@ -114,11 +141,17 @@ socket.on("joined_game", (data) => {
     is_player = data.is_player;
 });
 
+socket.on("spectator_update", data => {
+    if (data.count === 0){
+        document.getElementById("spectator-count").textContent = '';
+    }
+    else{
+        document.getElementById("spectator-count").textContent = " Spectators: " + data.count;
+    }
+});
+
 function check_game_status(game_status){
-    if (game_status = "FINISHED" || "STARTING"){
-        new_game_link = document.getElementById("new_game");
-        new_game_link.setAttribute("type","button");
-        new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
+    if (game_status === "STARTING"){
 
         clear_draw_status();
         const draw_btn = document.getElementById("draw-btn");
@@ -128,7 +161,12 @@ function check_game_status(game_status){
         const resign_btn = document.getElementById("resign-btn");
         resign_btn.setAttribute("aria-disabled", "true")
         resign_btn.classList.add("disabled-link");
-    };
+    }
+    else if (game_status === "FINISHED"){
+        new_game_link = document.getElementById("new_game");
+        new_game_link.setAttribute("type","button");
+        new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
+    }
 }
 
 socket.on("game_over", (data) => {
@@ -150,6 +188,25 @@ socket.on("game_over", (data) => {
     const resign_btn = document.getElementById("resign-btn");
     resign_btn.setAttribute("aria-disabled", "true")
     resign_btn.classList.add("disabled-link");
+
+    // Apply color styling based on game result
+    const player_a = document.getElementById("player_a");
+    const player_b = document.getElementById("player_b");
+
+    if (data.result === "draw") {
+        // Draw: both players grey
+        player_a.innerHTML.style.color = "grey";
+        player_b.innerHTML.style.color = "grey";
+    } else if (data.result === "win") {
+        // Determine winner and loser
+        if (username_a === data.winner) {
+            player_a.innerHTML.style.color = "green";  // Winner
+            player_b.innerHTML.style.color = "#ff0000b0";  // Loser (red)
+        } else if (username_b === data.winner) {
+            player_b.innerHTML.style.color = "green";  // Winner
+            player_a.innerHTML.style.color = "#ff0000b0";  // Loser (red)
+        }
+    }
 });
 /// DRAW/RESIGNATION HANDLER
 
@@ -322,7 +379,7 @@ function render_board(pos){
         if (piece === "none") continue;
 
         const img = document.createElement("img");
-        img.src=`/static/image_folder/${piece}.png`;
+        img.src = pieceUrl(piece);
         img.classList.add("piece");
         img.dataset.square = square;
         img.draggable = true;
@@ -346,45 +403,24 @@ function render_board(pos){
     }
 }
 
-function render_nameplate(username_a, username_b, is_player){
+
+function render_nameplate(username_a, elo_a, username_b, elo_b){
     const player_a = document.getElementById("player_a");
     const player_b = document.getElementById("player_b");
-    
-    
-    const draw_btn = document.getElementById("draw-btn");
-    const resign_btn = document.getElementById("resign-btn");
-
     search = document.getElementById("searching");
     let searching = false;
     if (game_status === "STARTING"){
         searching = true;
-        draw_btn.setAttribute("aria-disabled", "true")
-        draw_btn.classList.add("disabled-link");
-
-
-        resign_btn.setAttribute("aria-disabled", "true")
-        resign_btn.classList.add("disabled-link");
     }
-    else{
-        draw_btn.setAttribute("aria-disabled", "false")
-        draw_btn.classList.remove("disabled-link");
-
-
-        resign_btn.setAttribute("aria-disabled", "false")
-        resign_btn.classList.remove("disabled-link");
-    }
-
-    player_a.setAttribute("type", "button");
     if (is_player){
-        player_a.innerHTML = player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a} (You) </a>`;
+        player_a.innerHTML = player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a} (You)  (${elo_a}) </a>`;
     }
     else{
-        player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a}</a>`;
+        player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a}  (${elo_a})</a>`;
     }
 
-    player_b.setAttribute("type", "button");
     if (username_b !== null){
-        player_b.innerHTML = `<a class="username-item username-link" href="/profile/${username_b}">${username_b}</a>`;
+        player_b.innerHTML = `<a class="username-item username-link" href="/profile/${username_b}">${username_b}  (${elo_b})</a>`;
     }
 
     if (!searching){
@@ -625,7 +661,7 @@ socket.on("reveal_piece", data => {
     const img = document.querySelector(`img[data-square="${square}"]`);
         if (!img) return;
         
-        img.src = `/static/image_folder/${piece}.png`;
+        img.src = pieceUrl(piece);
         //img.style.border = "1vw solid #686868";
         // move_mark = document.querySelector(`img[data-square="${img}"]`);
 
@@ -654,7 +690,7 @@ socket.on("make_capture", data => {
     const img1 = document.querySelector(`img[data-square="${square1}"]`);
     const img2 = document.querySelector(`img[data-square="${square2}"]`);
     if (!img1 || !img2) return;
-    img2.src = `/static/image_folder/${piece1}.png`;
+    img2.src = pieceUrl(piece1);
     img2.dataset.piece = piece1;
 
     img1.src = `/static/image_folder/empty.png`;
@@ -673,7 +709,7 @@ socket.on("make_move", data => {
     const img1 = document.querySelector(`img[data-square="${square1}"]`);
     const img2 = document.querySelector(`img[data-square="${square2}"]`);
     if (!img1 || !img2) return;
-    img2.src = `/static/image_folder/${piece}.png`;
+    img2.src = pieceUrl(piece);
     img2.dataset.piece = piece;
 
     img1.src = `/static/image_folder/empty.png`;

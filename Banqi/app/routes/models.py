@@ -10,6 +10,12 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(24), unique=True, nullable = False)
     password_hash = db.Column(db.String(256), nullable = False)
     elo = db.Column(db.Integer, nullable = False, default=1200)
+    
+    # Settings
+    piece_skin = db.Column(db.String(32), default='chinese')  # 'chinese' or 'picture'
+    sound_enabled = db.Column(db.Boolean, default=True)
+    notifications_enabled = db.Column(db.Boolean, default=True)
+    move_confirmation_required = db.Column(db.Boolean, default=False)
 
     game = db.relationship("Player", back_populates="user")
 
@@ -43,6 +49,8 @@ class Player(db.Model):
     colour = db.Column(db.String(1))
     
     result = db.Column(db.String(8))  # "win", "loss", "draw"
+    elo_p = db.Column(db.Integer)
+    elo_change = db.Column(db.Integer)
 
     game = db.relationship("Game", back_populates = "player")
     user = db.relationship("User", back_populates = "game")

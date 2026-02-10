@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template
 from .game_socket import active_games
-
+from .game_helper import GAME_STATUS
 spectate_bp = Blueprint('spectate', __name__, url_prefix='/spectate')
 
 @spectate_bp.route('/', methods=['GET'])
@@ -13,7 +13,7 @@ def spectate():
     results = []
     try:
         for game_id, game in list(active_games.items())[:15]:
-            if game.state.get("status") == "ONGOING":
+            if game.state.get("status") == GAME_STATUS.ONGOING.name or GAME_STATUS.STARTING.name: #temp add OR starting.
                 try:
                     a = game.state.get('players', {}).get('A', {}).get('username')
                     b = game.state.get('players', {}).get('B', {}).get('username')

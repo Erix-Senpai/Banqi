@@ -15,9 +15,9 @@
                 </div>
 
                 <div class="cta-unit">
-                    <a href="{{ url_for('play.create_private_game', game_id='') }}" class="btn btn-warning btn-lg row">
+                    <a href="{{ url_for('play.create_private_game', game_id='') }}" class="btn btn-dark btn-lg row">
                         <p style="text-align:center;">Challenge Friends</p>
-                        <p class="cta-description" style="text-align: center;">play a friend and create a private match</p>
+                        <p class="cta-description" style="text-align: center;">create a private game</p>
                     </a>
                 </div>
                 
@@ -30,7 +30,7 @@
                 </div>
 
                 <div class="cta-unit">
-                    <a href="{{ url_for('home.home') }}"  class="btn btn-dark btn-lg row">
+                    <a href="{{ url_for('auth.profile', username=current_user.username) }}" class="btn btn-warning btn-lg row">
                         <p style="text-align: center;">My Stats</p>
                         <p class="cta-description" style="text-align: center;">view your stat</p>
                     </a>
@@ -40,8 +40,8 @@
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-12">
+    <div class="row mb-4">
+        <div class="cta-unit2">
             <div class="card Previous-Games">
                 <div class="card-header">
                     <strong>Previous Games</strong>
@@ -52,19 +52,21 @@
                             <table class="table table-hover align-middle mb-0">
                                 <thead>
                                     <tr>
-                                        <th>Opponent</th>
-                                        <th>Result</th>
-                                        <th>Date</th>
-                                        <th class="text-end">Actions</th>
+                                        <th class="Previous-Games">Opponent</th>
+                                        <th class="Previous-Games">Result</th>
+                                        <th class="Previous-Games">Rating Change</th>
+                                        <th class="Previous-Games">Date</th>
+                                        <th class="Previous-Games text-end">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for g in previous_games %}
                                     <tr>
-                                        <td>{{ g.opponent_username or g.opponent or '—' }}</td>
-                                        <td>{{ g.result or 'Unknown' }}</td>
-                                        <td>{{ g.date or '—' }}</td>
-                                        <td class="text-end">
+                                        <td class="Previous-Games">{{ g.opponent_username | safe }}</td>
+                                        <td class="Previous-Games"><span class="{% if g.result == 'DRAW' %}text-muted{% elif g.result == 'LOSS' %}text-danger{% elif g.result == 'WIN' %}text-success{% endif %}">{{ g.result or '-' }}</span></td>
+                                        <td class="Previous-Games"><span class="{% if g.result == 'DRAW' %}text-muted{% elif g.result == 'LOSS' %}text-danger{% elif g.result == 'WIN' %}text-success{% endif %}">{{ g.elo_change_display or '—' }}</span></td>
+                                        <td class="Previous-Games">{{ g.date or '—' }}</td>
+                                        <td class="Previous-Games text-end">
                                             {% if g.game_id %}
                                                 <a href="{{ url_for('play.game', game_id=g.game_id) }}" class="btn btn-sm btn-primary">View</a>
                                             {% else %}
@@ -77,7 +79,11 @@
                             </table>
                         </div>
                     {% else %}
-                        <p class="mb-0 text-muted">You don't have any previous games yet. Click <a href="{{ url_for('play.create_game') }}">Play</a> to start one.</p>
+                        {% if is_guest %}
+                            <p class="mb-0 text-muted">To see previous games, you must first <a href="{{ url_for('auth.login') }}">log in</a>.</p>
+                        {% else %}
+                            <p class="mb-0 text-muted">You don't have any previous games yet. Click <a href="{{ url_for('play.game', game_id='') }}">Play</a> to play your very first game!</p>
+                        {% endif %}
                     {% endif %}
                 </div>
             </div>
