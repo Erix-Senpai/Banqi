@@ -372,3 +372,7 @@ th.Previous-Games {
 td.Previous-Games {
     background-color: #cda45f;
 }
+
+.winner { color: green; }
+.loser { color: #b00b00; }
+.draw { color: #676767; }

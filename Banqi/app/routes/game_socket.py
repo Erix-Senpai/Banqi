@@ -14,7 +14,7 @@ import threading
 import time
 from datetime import date
 from collections import deque
-
+from flask import session
 class Game_State:
     def __init__(self, game_id, is_private=False):
         self.id = game_id
@@ -25,7 +25,7 @@ class Game_State:
 
         self.created_at = time.time()
         self.started_at = time.time()
-
+        self.archivable = True
         # runtime-only (NOT in state dict)
         self.sockets = {}      # user_id -> sid
         self.spectators = {}   # user_id -> sid
@@ -135,14 +135,11 @@ def join_game(data: dict) -> None:
             loaded = load_game_from_db(game_id)
             if loaded:
                 try:
-                    print("debugging...")
                     game = Game_State(game_id)
                     game.state = loaded
                     active_games[game_id] = game
-                    print("game loaded.")
                     game = active_games.get(game_id)
-                    print(f"Active game with id {game_id} : {active_games.get(game_id)}  ")
-                    view_game_history(game_id, user_id)
+                    view_game_history(game_id)
                 except Exception as e:
                     print(f"debug exception. {e}")
                     return
@@ -181,14 +178,12 @@ def join_game(data: dict) -> None:
         is_player = True
     else:
         player_slot = "Spectator"
-        #TODO: ANON users should not be able to lose or gain elo. #COMPLETED
+        #TODO: in auth, flash messages are not displayed correctly.
         #TODO: Add spectator count if spectator.
-        #TODO: Add skins for english players. #COMPLETED
         #TODO: add tutorial?
         #TODO: add a chat box for spectators to talk amongst themselves, and with players if players opt in.
         #TODO: add a funct where on game_over, update user's displayed elo
         #TODO: when user checks for historical games, some items arent parsed through correctly
-        #TODO: when user types for url /profile/<username>, need to intake username as a str
         is_player = False
     current_player_turn = game.state.get("player_turn")
     try:
@@ -217,11 +212,10 @@ def join_game(data: dict) -> None:
     elo_a = game.state["players"]["A"]["elo"]
     elo_b = game.state["players"]["B"]["elo"]
     socketio.emit("render_nameplate", {"username_a": username_a, "elo_a": elo_a,"username_b": username_b, "elo_b": elo_b, "is_player": is_player}, room=game_id)  # type: ignore
-    if (not is_player and game.state.get("status") != GAME_STATUS.FINISHED):
+    if (not is_player and game.state.get("status") != GAME_STATUS.FINISHED.name):
         join_spectator(game_id)
 
-def view_game_history(game_id: str, user_id: str) -> None:
-    print("debugging...")
+def view_game_history(game_id: str) -> None:
     sid = request.sid # type: ignore
     game = active_games.get(game_id)
     if not game:
@@ -243,20 +237,9 @@ def view_game_history(game_id: str, user_id: str) -> None:
     username_a = game.state["players"]["A"]["username"]
     username_b = game.state["players"]["B"]["username"]
     # include piece_skin where possible so clients can render correct assets
-    try:
-        try_skin = 'chinese'
-        if current_user.is_authenticated:
-            usr = db.session.get(User, current_user.id)
-            if usr and getattr(usr, 'piece_skin', None):
-                try_skin = usr.piece_skin
-        elif isinstance(session.get('user_id'), int):
-            usr = db.session.get(User, session.get('user_id'))
-            if usr and getattr(usr, 'piece_skin', None):
-                try_skin = usr.piece_skin
-    except Exception:
-        try_skin = 'chinese'
 
-    socketio.emit("render_nameplate", {"username_a": username_a, "username_b": username_b, "is_player": is_player, "piece_skin": try_skin}, room=sid)  # type: ignore
+    socketio.emit("render_nameplate", {"username_a": username_a, "elo_a": game.state["players"]["A"]["elo"], "username_b": username_b, "elo_b": game.state["players"]["B"]["elo"], "is_player": is_player, "piece_skin": try_skin}, room=sid)  # type: ignore
+    
 
 ### Socket Events for Player Actions ###
 @socketio.on("try_reveal_piece")
@@ -882,7 +865,8 @@ def checkmate_by_disconnection(game_id: str, loser_username: str) -> None:
         try:
             archive_game_to_db(game_id)
         except Exception as e:
-            print(f"[DISCONNECT-ARCHIVE-ERROR] Failed to archive {game_id}: {e}")
+            #this error often occurs when user has the HTTP request page closed.
+            return
     except Exception:
         return
 
@@ -959,8 +943,8 @@ def init_game_state():
         "player_turn": "A",
         "move_count": 0,
         "players": {
-            "A": {"user_id": None,  "username": None, "colour": None, "elo": None},
-            "B": {"user_id": None, "username": None, "colour": None, "elo": None}
+            "A": {"user_id": None,  "username": None, "colour": None, "elo": None, "req": None},
+            "B": {"user_id": None, "username": None, "colour": None, "elo": None, "req": None}
         },
         "moves": {
             "A": [],
@@ -986,7 +970,6 @@ def load_game_from_db(game_id: str):
     """
     try:
         g = db.session.get(Game, game_id)
-        
         if not g:
             return None
 
@@ -996,8 +979,8 @@ def load_game_from_db(game_id: str):
             "player_turn": g.player_turn,
             "move_count": g.move_count,
             "players": {
-                "A": {"user_id": None, "sid": None, "username": None, "colour": None, "req": None},
-                "B": {"user_id": None, "sid": None, "username": None, "colour": None, "req": None},
+                "A": {"user_id": None, "username": None, "colour": None, "elo": None, "req": None},
+                "B": {"user_id": None, "username": None, "colour": None, "elo": None, "req": None},
             },
             "moves": {"A": [], "B": []},
             "status": g.status,
@@ -1011,6 +994,10 @@ def load_game_from_db(game_id: str):
                 state["players"][slot]["user_id"] = p.user_id
                 state["players"][slot]["username"] = p.username
                 state["players"][slot]["colour"] = p.colour
+                state["players"][slot]["elo"] = p.elo_p
+                print("debugging...")
+                print(f"elo_p: {p.elo_p}")
+                print(f"state elo: {state["players"][slot]["elo"]}")
 
         # populate moves (sorted by move_number)
         moves = sorted(getattr(g, "move", []), key=lambda m: (m.move_number or 0))
@@ -1033,7 +1020,19 @@ def load_game_from_db(game_id: str):
 
 def archive_game_to_db(game_id) -> None:
     game = active_games.get(game_id)
+    archive_lock = threading.Lock()
     if not game:
+        return
+    try:
+        with archive_lock:
+            if game.archivable:
+                game.archivable = False
+                pass
+            else:
+                archive_lock.release()
+                return
+    except Exception:
+        archive_lock.release()
         return
     try:
         game_model = Game()
@@ -1061,12 +1060,13 @@ def archive_game_to_db(game_id) -> None:
 
             user_id = p.get("user_id")
             # Check if user is a guest (user_id starts with "ANON_")
-            is_guest = isinstance(user_id, str) and user_id.startswith("ANON_")
+            #is_guest = isinstance(user_id, str) and user_id.startswith("ANON_")
             
             # Skip adding guest player data to database
-            if is_guest:
-                continue # skips the iteration for guest players
+            #if is_guest:
+            #    continue # skips the iteration for guest players
 
+            
             gp = Player()
             gp.game_id = game_id
             gp.player_slot = slot
@@ -1081,24 +1081,51 @@ def archive_game_to_db(game_id) -> None:
             opponent_slot = "B" if slot == "A" else "A"
             opponent_elo = game.state["players"][opponent_slot]["elo"]
             
-            if player_elo > opponent_elo:
-                elo_change = 10 - elo_diff
-            elif player_elo < opponent_elo:
-                elo_change = 10 + elo_diff
-            else:
-                elo_change = 10
             
             # Calculate ELO change based on rating difference
+            
             if winner is None:
                 gp.result = GAME_RESULT.DRAW.name
+
+                if player_elo > opponent_elo:
+                    elo_change = 10 - elo_diff
+                    if elo_change < 0:
+                        elo_change = 0
+                elif player_elo < opponent_elo:
+                    elo_change = 10 + elo_diff
+                else:
+                    elo_change = 10
                 gp.elo_change = math.floor(elo_change/2)
                 
             elif p.get("username") == winner:
                 gp.result = GAME_RESULT.WIN.name
+
+                if player_elo > opponent_elo:
+                    elo_change = 10 - elo_diff
+                elif player_elo < opponent_elo:
+                    elo_change = 10 + elo_diff
+                    if elo_change < 0:
+                        elo_change = 0
+                else:
+                    elo_change = 10
                 gp.elo_change = elo_change
             else:
                 gp.result = GAME_RESULT.LOSS.name
+                if player_elo > opponent_elo:
+                    elo_change = 10 + elo_diff
+                elif player_elo < opponent_elo:
+                    elo_change = 10 - elo_diff
+                    if elo_change < 0:
+                        elo_change = 0
+                else:
+                    elo_change = 10
                 gp.elo_change = -elo_change
+            p2 = game.state["players"][PLAYER_TURN_TOGGLE[slot]]
+            p2_user_id = p2.get("user_id")
+            p2_is_guest = isinstance(p2_user_id, str) and p2_user_id.startswith("ANON_")
+            guest = session.get("is_guest")
+            if p2_is_guest or guest:
+                gp.elo_change = 0
             db.session.add(gp)
             # Apply elo change to the User record (if present)
             try:

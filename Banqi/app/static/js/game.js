@@ -80,6 +80,7 @@ function copyShareUrl() {
 
 socket.on("game_ready", () => {
     game_status = "ONGOING";
+    check_game_status(game_status);
 });
 socket.on("render_nameplate", (data) => {
     // update piece skin if provided by server
@@ -162,6 +163,15 @@ function check_game_status(game_status){
         resign_btn.setAttribute("aria-disabled", "true")
         resign_btn.classList.add("disabled-link");
     }
+    else if (game_status === "ONGOING"){
+
+        const draw_btn = document.getElementById("draw-btn");
+        draw_btn.setAttribute("aria-disabled", "false")
+        draw_btn.classList.remove("disabled-link");
+        const resign_btn = document.getElementById("resign-btn");
+        resign_btn.setAttribute("aria-disabled", "false")
+        resign_btn.classList.remove("disabled-link");
+    }
     else if (game_status === "FINISHED"){
         new_game_link = document.getElementById("new_game");
         new_game_link.setAttribute("type","button");
@@ -169,11 +179,57 @@ function check_game_status(game_status){
     }
 }
 
+// Show a Bootstrap modal with game-over details. Falls back to a simple overlay
+function showGameOverModal(data){
+        // remove existing modal if present
+        const existing = document.getElementById('gameOverModal');
+        if (existing) existing.remove();
+
+        const titleText = data.result || 'Game Over';
+        const winnerText = (data.winner === null || data.winner === '') ? 'None' : data.winner;
+        const reasonText = data.reason || '';
+
+        const modalHtml = `
+        <div class="modal fade" id="gameOverModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">${titleText}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Winner:</strong> ${winnerText}</p>
+                        <p><strong>Reason:</strong> ${reasonText}</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = modalHtml;
+        document.body.appendChild(wrapper.firstElementChild);
+
+        // Use Bootstrap modal if available, otherwise leave the element in DOM as a basic fallback
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal){
+                const modalEl = document.getElementById('gameOverModal');
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+        } else {
+                // fallback: show by toggling display (very basic)
+                const modalEl = document.getElementById('gameOverModal');
+                if (modalEl) modalEl.style.display = 'block';
+        }
+}
+
 socket.on("game_over", (data) => {
     if (data.winner === null) {
         data.winner = ""
     }
-    alert(`Game Over. ${data.winner} ${data.result} due to ${data.reason}`);
+    // show modal instead of alert
+    showGameOverModal(data);
 
     game_status = "FINISHED";
     new_game_link = document.getElementById("new_game");
@@ -195,16 +251,20 @@ socket.on("game_over", (data) => {
 
     if (data.result === "draw") {
         // Draw: both players grey
-        player_a.innerHTML.style.color = "grey";
-        player_b.innerHTML.style.color = "grey";
+        const link_a = player_a.querySelector("a");
+        const link_b = player_b.querySelector("a");
+        if (link_a) link_a.classList.add("draw");
+        if (link_b) link_b.classList.add("draw");
     } else if (data.result === "win") {
         // Determine winner and loser
+        const link_a = player_a.querySelector("a");
+        const link_b = player_b.querySelector("a");
         if (username_a === data.winner) {
-            player_a.innerHTML.style.color = "green";  // Winner
-            player_b.innerHTML.style.color = "#ff0000b0";  // Loser (red)
+            if (link_a) link_a.classList.add("winner"); // Winner
+            if (link_b) link_b.classList.add("loser"); // Loser
         } else if (username_b === data.winner) {
-            player_b.innerHTML.style.color = "green";  // Winner
-            player_a.innerHTML.style.color = "#ff0000b0";  // Loser (red)
+            if (link_b) link_b.classList.add("winner");  // Winner
+            if (link_a) link_a.classList.add("loser");  // Loser
         }
     }
 });
@@ -413,7 +473,7 @@ function render_nameplate(username_a, elo_a, username_b, elo_b){
         searching = true;
     }
     if (is_player){
-        player_a.innerHTML = player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a} (You)  (${elo_a}) </a>`;
+        player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a} (You)  (${elo_a}) </a>`;
     }
     else{
         player_a.innerHTML = `<a class="username-item username-link" href="/profile/${username_a}">${username_a}  (${elo_a})</a>`;
