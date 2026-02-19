@@ -173,6 +173,7 @@ function check_game_status(game_status){
         resign_btn.classList.remove("disabled-link");
     }
     else if (game_status === "FINISHED"){
+        
         new_game_link = document.getElementById("new_game");
         new_game_link.setAttribute("type","button");
         new_game_link.innerHTML = `<a class="nav-item nav-link" href="/play/game">New Game</a>`;
@@ -491,7 +492,6 @@ function render_nameplate(username_a, elo_a, username_b, elo_b){
             return;
         }
     }
-
 };
 
 let moveCount = 0;

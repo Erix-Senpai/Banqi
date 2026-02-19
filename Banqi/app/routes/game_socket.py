@@ -223,6 +223,16 @@ def view_game_history(game_id: str) -> None:
     player_slot = None
     current_player_turn = game.state.get("player_turn")
     is_player = False
+    try:
+        user = db.session.get(User, session.get("user_id"))
+        if user:
+            piece_skin = str(user.piece_skin)
+        else:
+            piece_skin = "chinese"
+    except Exception:
+        piece_skin = "chinese"
+        pass
+
     socketio.emit("joined_game", {
         "game_id": game_id,
         "board": game.state.get("board"),
@@ -232,13 +242,14 @@ def view_game_history(game_id: str) -> None:
         "player_slot": player_slot,
         "player_turn": current_player_turn,
         "is_player": is_player,
-        "current_player_colour": game.state["players"][current_player_turn]["colour"]
+        "current_player_colour": game.state["players"][current_player_turn]["colour"],
+        "piece_skin": piece_skin
     }, to=request.sid)  # type: ignore
     username_a = game.state["players"]["A"]["username"]
     username_b = game.state["players"]["B"]["username"]
     # include piece_skin where possible so clients can render correct assets
 
-    socketio.emit("render_nameplate", {"username_a": username_a, "elo_a": game.state["players"]["A"]["elo"], "username_b": username_b, "elo_b": game.state["players"]["B"]["elo"], "is_player": is_player, "piece_skin": try_skin}, room=sid)  # type: ignore
+    socketio.emit("render_nameplate", {"username_a": username_a, "elo_a": game.state["players"]["A"]["elo"], "username_b": username_b, "elo_b": game.state["players"]["B"]["elo"], "is_player": is_player}, room=sid)  # type: ignore
     
 
 ### Socket Events for Player Actions ###
