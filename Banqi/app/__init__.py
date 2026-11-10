@@ -78,7 +78,7 @@ def create_app():
             session["is_guest"] = False
         else:
             if "user_id" not in session:
-                session["user_id"] = str(uuid.uuid4())[:8]
+                session["user_id"] = f"ANON_{str(uuid.uuid4())[:8]}"
 
                 session["username"] = f"ANON_{str(uuid.uuid4())[:4]}{random.randint(1000,9999)}"
                 session["is_guest"] = True

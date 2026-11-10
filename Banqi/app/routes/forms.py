@@ -22,6 +22,8 @@ class RegisterForm(FlaskForm):
         username = field.data
         if not re.match("^[A-Za-z0-9_]+$", username):
             raise ValidationError("Username can only contain letters, numbers, and underscores.")
+        if str(username).upper().startswith("ANON"):
+            raise ValidationError("Username must not start with ANON as it is reserved for ANONYMUS users only.")
     username = StringField("Username", validators=[InputRequired("Please enter a username"),chartype_check, Length(min=4, max=24, message="Username must be between 4 and 24 characters long")])
     # linking two fields - password should be equal to data entered in confirm
     password=PasswordField("Password", validators=[InputRequired(),

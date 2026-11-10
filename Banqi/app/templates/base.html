@@ -22,35 +22,43 @@
             src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js">
         </script>
     </head>
-
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+        {% for message in messages %}
+        <div class="flash-message">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+    {% endwith %}
     <body>
         <div class="container-fluid">
             <div class="row">
-                <div class="col-sm-4 col-md-3 col-lg-3 col-xl-2 nav-column" style="background: rgba(83, 54, 19, 0.683);">
-                    <nav class="navbar navbar-expand-sm">
+                <div class="col-sm-12 col-md-3 col-lg-3 col-xl-2 nav-column" style="background: rgba(83, 54, 19, 0.683);">
+                    <nav class="navbar navbar-expand-md">
                         <button class = "navbar-toggler nav-cont" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
                             <span class="navbar-toggler-icon"></span>
                         </button>
                         <div class="collapse navbar-collapse" id="mainNavbar">
                             <ul class="nav nav-cont row">
-                                <li class="nav-cont col-12">
+                                <li class="nav-cont col-md-12">
                                     <a class="nav-item nav-link" id="Home" href="{{ url_for('home.home') }}" type="button">Home</a>
                                 </li>
-                                <li class="nav-cont col-12">
+                                <li class="nav-cont col-md-12">
                                     <a class="nav-item nav-link"  id="Play" type="button" href="{{ url_for('play.game', game_id='') }}">Play</a>
                                 </li>
                                 {% if current_user.is_authenticated %}
-                                <li class="nav-cont col-12">
+                                <li class="nav-cont col-md-12">
                                     <a class="nav-item nav-link" id="Profile" type="button" href="{{ url_for('auth.profile', username=current_user.username) }}">Profile</a>
                                 </li>
-                                <li class="nav-cont col-12">
-                                    <a class="nav-item nav-link" id="Setting" type="button" href="#">Setting</a>
+                                <li class="nav-cont col-md-12">
+                                    <a class="nav-item nav-link" id="Setting" type="button" href="{{ url_for('auth.settings') }}">Setting</a>
                                 </li>
-                                <li class="nav-cont col-12">
+                                <li class="nav-cont col-md-12">
                                     <a href="{{ url_for('auth.logout') }}" class="nav-item nav-link" type="button" aria-disabled="true">Log Out</a>
                                 </li>
                                 {% else %}
-                                <li class="nav-cont col-12">
+                                <li class="nav-cont col-md-12">
                                     <a href="{{ url_for('auth.login') }}" class="nav-item nav-link" type="button" aria-disabled="true">Log In</a>
                                 </li>
                                 {% endif %}
@@ -58,7 +66,7 @@
                         </div>
                     </nav>
                 </div>
-                <main class="col-sm-8 col-md-9 col-lg-9 col-xl-10 min-vh-100" style="background: #7d5a1aae;">
+                <main class="col-sm-12 col-md-9 col-lg-9 col-xl-10 min-vh-100" style="background: #7d5a1aae;">
                     {% block content %}{% endblock %}
                 </main>
             </div>

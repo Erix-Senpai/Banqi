@@ -1,4 +1,4 @@
-from flask import Blueprint, flash, render_template, url_for, redirect, current_app
+from flask import Blueprint, flash, render_template, url_for, redirect, current_app, request
 from flask_bcrypt import generate_password_hash, check_password_hash
 from flask_login import login_user, login_required, logout_user, current_user
 from .models import User, Player, Game
@@ -87,7 +87,7 @@ def profile(username):
     user = db.session.scalar(db.select(User).where(User.username==username))
     
     if user is None:
-        flash(f'User "{username}" not found.')
+        flash(f'User "{username}" not found.', 'danger')
         return redirect(url_for('home.home'))
     
     # Calculate stats
@@ -118,3 +118,68 @@ def profile(username):
     
     return render_template('bootstrap5/profile.html', stats=stats, user=user)
 
+
+@auth_bp.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    """Handle user settings page."""
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'change_password':
+            old_password = request.form.get('old_password')
+            new_password = request.form.get('new_password')
+            confirm_password = request.form.get('confirm_password')
+            
+            if not check_password_hash(current_user.password_hash, old_password):
+                flash('Current password is incorrect.', 'danger')
+            elif new_password != confirm_password:
+                flash('New passwords do not match.', 'danger')
+            elif len(str(new_password)) < 6:
+                flash('Password must be at least 6 characters long.', 'danger')
+            else:
+                current_user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                db.session.commit()
+                flash('Password changed successfully.', 'success')
+        
+        elif action == 'delete_account':
+            password = request.form.get('delete_password')
+            
+            if not check_password_hash(current_user.password_hash, password):
+                flash('Password is incorrect. Account not deleted.', 'danger')
+            else:
+                user_id = current_user.id
+                logout_user()
+                db.session.delete(current_user)
+                db.session.commit()
+                flash('Account deleted successfully.', 'success')
+                return redirect(url_for('home.home'))
+        
+        elif action == 'change_skin':
+            skin = request.form.get('piece_skin')
+            if skin in ['chinese', 'picture']:
+                current_user.piece_skin = skin
+                db.session.commit()
+                flash(f'Piece skin changed to {skin}.', 'success')
+            else:
+                flash('Invalid skin selection.', 'danger')
+        
+        elif action == 'toggle_sound':
+            current_user.sound_enabled = not current_user.sound_enabled
+            db.session.commit()
+            status = 'enabled' if current_user.sound_enabled else 'disabled'
+            flash(f'Sound {status}.', 'success')
+        
+        elif action == 'toggle_notifications':
+            current_user.notifications_enabled = not current_user.notifications_enabled
+            db.session.commit()
+            status = 'enabled' if current_user.notifications_enabled else 'disabled'
+            flash(f'Notifications {status}.', 'success')
+        
+        elif action == 'toggle_move_confirmation':
+            current_user.move_confirmation_required = not current_user.move_confirmation_required
+            db.session.commit()
+            status = 'enabled' if current_user.move_confirmation_required else 'disabled'
+            flash(f'Move confirmation {status}.', 'success')
+    
+    return render_template('settings.html', user=current_user)
